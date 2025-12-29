@@ -22,6 +22,7 @@ function connectWS() {
 
   ws.addEventListener("open", () => {
     wsReady = true;
+
     // flush queue
     for (const msg of wsQueue) ws.send(msg);
     wsQueue = [];
@@ -32,17 +33,17 @@ function connectWS() {
 
   ws.addEventListener("message", (e) => {
     let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
     syncHandlers.forEach((fn) => fn(msg));
   });
 
   ws.addEventListener("close", () => {
     wsReady = false;
     setTimeout(connectWS, 900);
-  });
-
-  ws.addEventListener("error", () => {
-    // will close -> reconnect
   });
 }
 
@@ -69,17 +70,23 @@ const CLIENT_ID_KEY = "jeopardy_client_id_tab_v2";
 function getClientId() {
   if (tabParam) return `tab_${tabParam}`;
   let id = "";
-  try { id = sessionStorage.getItem(CLIENT_ID_KEY) || ""; } catch {}
+  try {
+    id = sessionStorage.getItem(CLIENT_ID_KEY) || "";
+  } catch {}
   if (!id) {
-    id = (globalThis.crypto?.randomUUID?.() || `c_${Math.random().toString(16).slice(2)}_${Date.now()}`);
-    try { sessionStorage.setItem(CLIENT_ID_KEY, id); } catch {}
+    id =
+      globalThis.crypto?.randomUUID?.() ||
+      `c_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    try {
+      sessionStorage.setItem(CLIENT_ID_KEY, id);
+    } catch {}
   }
   return id;
 }
 const clientId = getClientId();
 
 /* =========================
-   GAME DATA (dein Set)
+   GAME DATA
    (Hier pflegst du deine Kategorien/Fragen)
 ========================= */
 let gameData = {
@@ -87,11 +94,23 @@ let gameData = {
     {
       name: "Gemink",
       clues: [
-        { value: 100, q: "Wie heißt das Taschenmonster-Spiel, das 1999 in Deutschland erschien?", a: "Pokémon" },
+        {
+          value: 100,
+          q: "Wie heißt das Taschenmonster-Spiel, das 1999 in Deutschland erschien?",
+          a: "Pokémon",
+        },
         { value: 200, q: "Wie hieß das erste Battlefield?", a: "Battlefield 1942" },
-        { value: 300, q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?", a: "World of Warcraft" },
+        {
+          value: 300,
+          q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?",
+          a: "World of Warcraft",
+        },
         { value: 400, q: "Welches Tag ist semantisch für die Hauptüberschrift gedacht?", a: "<h1>" },
-        { value: 500, q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?", a: "Geralt von Riva" },
+        {
+          value: 500,
+          q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?",
+          a: "Geralt von Riva",
+        },
       ],
     },
     {
@@ -109,7 +128,11 @@ let gameData = {
       clues: [
         { value: 100, q: "Wie oft wurde Deutschland Fußball-Weltmeister?", a: "4-mal" },
         { value: 200, q: "Wie heißt der erste Pickup-Truck vin Tesla?", a: "Cybertruck" },
-        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?", a: "Stockholm-Syndrom" },
+        {
+          value: 300,
+          q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?",
+          a: "Stockholm-Syndrom",
+        },
         { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
         { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
       ],
@@ -160,7 +183,11 @@ let gameData = {
         { value: 100, q: "Mathe: Wie viel Grad hat ein gestreckter Winkel?", a: "180°" },
         { value: 200, q: "Chemie: Welche Abkürzung hat Eisen im Periodensystem?", a: "Fe" },
         { value: 300, q: "Deutsch: Wie nennt man die Grundform eines Verbs?", a: "Infinitiv" },
-        { value: 400, q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?", a: "Die Blätter (und die darin enthaltenen Chloroplasten)" },
+        {
+          value: 400,
+          q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?",
+          a: "Die Blätter (und die darin enthaltenen Chloroplasten)",
+        },
         { value: 500, q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?", a: "Future Perfect" },
       ],
     },
@@ -193,9 +220,9 @@ const podiumEl = document.getElementById("podium");
 const endCloseBtn = document.getElementById("endCloseBtn");
 const endNewGameBtn = document.getElementById("endNewGameBtn");
 
-// optional Join UI (board)
-const joinBtn = document.getElementById("joinBtn");
-const joinInput = document.getElementById("joinName") || document.getElementById("nameInput"); // falls du anders heißt
+// Board Join UI (deine IDs!)
+const joinBtnEl = document.getElementById("joinBtn");
+const joinNameEl = document.getElementById("joinName");
 
 /* =========================
    State (Host = authoritativ)
@@ -205,7 +232,7 @@ const used = new Set();
 let players = []; // {id, name, score}
 let activePlayerIndex = 0;
 
-let current = null;     // aktuelle Frage inkl. Phase
+let current = null;
 let currentAudio = null;
 
 const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length || 0), 0);
@@ -213,17 +240,29 @@ const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length ||
 /* =========================
    Helpers
 ========================= */
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-function halfPoints(v) { return Math.floor((v || 0) / 2); }
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+function halfPoints(v) {
+  return Math.floor((v || 0) / 2);
+}
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;",
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
   }[m]));
 }
 
-function getActivePlayer() { return players[activePlayerIndex] || null; }
-function getPlayerById(id) { return players.find(p => p.id === id) || null; }
+function getActivePlayer() {
+  return players[activePlayerIndex] || null;
+}
+function getPlayerById(id) {
+  return players.find((p) => p.id === id) || null;
+}
 
 function renderTurn() {
   const p = getActivePlayer();
@@ -268,34 +307,26 @@ function syncSnapshot() {
 function applySnapshot(s) {
   if (!s) return;
 
-  // used
   used.clear();
-  (s.used || []).forEach(k => used.add(k));
+  (s.used || []).forEach((k) => used.add(k));
 
-  // players
   players = Array.isArray(s.players) ? s.players : [];
   activePlayerIndex = Number.isInteger(s.activePlayerIndex) ? s.activePlayerIndex : 0;
 
-  // current
   current = s.current || null;
 
   renderPlayers();
   renderTurn();
   buildBoard();
 
-  // overlays
   if (overlay) {
     if (s.overlays?.questionOpen && current) {
-      // rebuild modal from current
       const clue = gameData.categories[current.ci]?.clues?.[current.qi];
       if (clue) {
         fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
         overlay.classList.add("show");
 
-        // show/hide answer depending on current.revealed
         setAnswerVisible(!!current.revealed);
-
-        // buzzer UI
         renderBuzzerUI();
       }
     } else {
@@ -371,7 +402,6 @@ function buildBoard() {
   board.innerHTML = "";
   board.style.gridTemplateColumns = `repeat(${gameData.categories.length}, 1fr)`;
 
-  // header
   gameData.categories.forEach((cat) => {
     const c = document.createElement("div");
     c.className = "cat";
@@ -398,11 +428,8 @@ function buildBoard() {
         tile.style.cursor = "default";
       } else {
         tile.textContent = clue.value;
-        if (isHost) {
-          tile.onclick = () => openQuestion(ci, i);
-        } else {
-          tile.style.cursor = "default";
-        }
+        if (isHost) tile.onclick = () => openQuestion(ci, i);
+        else tile.style.cursor = "default";
       }
 
       board.appendChild(tile);
@@ -439,18 +466,16 @@ function fillModalFromClue(clue, categoryName, value) {
   if (modalCategory) modalCategory.textContent = categoryName || "Kategorie";
   if (modalValue) modalValue.textContent = value ?? clue.value ?? 0;
 
-  // Question
   if (modalQuestion) {
     if (clue.img) {
       modalQuestion.innerHTML = `<img src="${clue.img}" alt="Fragebild" class="whoImg">`;
     } else if (clue.audio) {
-      modalQuestion.innerHTML = `<div class="questionText">🎵 Soundtrack abspielen…</div>`;
+      modalQuestion.innerHTML = `<div class="questionText">🎵 Soundtrack läuft…</div>`;
     } else {
       modalQuestion.textContent = clue.q ?? "";
     }
   }
 
-  // Answer content
   const layout = ensureAnswerLayout();
   if (!layout) return;
 
@@ -467,7 +492,6 @@ function fillModalFromClue(clue, categoryName, value) {
     answerContent.textContent = "Antwort: " + (clue.a ?? "");
   }
 
-  // default hidden until reveal
   setAnswerVisible(false);
 }
 
@@ -484,18 +508,19 @@ function openQuestion(ci, qi) {
   const mainPlayerId = getActivePlayer()?.id || null;
 
   current = {
-    ci, qi, key,
-    phase: "main",          // "main" | "buzzer"
+    ci,
+    qi,
+    key,
+    phase: "main",
     revealed: false,
 
-    // buzzer
     buzzLocked: false,
-    buzzed: {},            // {playerId:true}
-    buzzQueue: [],         // [playerId,...]
+    buzzed: {},
+    buzzQueue: [],
     buzzerActiveId: null,
 
     mainPlayerId,
-    ...clue
+    ...clue,
   };
 
   if (clue.audio) playAudio(clue.audio);
@@ -503,7 +528,6 @@ function openQuestion(ci, qi) {
 
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
 
-  // host buttons: direkt möglich
   updateHostButtonsForPhase();
   renderBuzzerUI();
 
@@ -512,7 +536,7 @@ function openQuestion(ci, qi) {
 }
 
 function closeModal() {
-  if (!isHost) return; // nur Host schließt
+  if (!isHost) return;
   if (overlay) overlay.classList.remove("show");
   current = null;
   stopAudio();
@@ -536,8 +560,6 @@ function revealAnswer() {
 function updateHostButtonsForPhase() {
   if (!isHost || !current) return;
 
-  // Reveal ist immer möglich (du wolltest: Frage -> richtig/falsch -> evtl buzzern -> sonst antwort einblenden)
-  // Also: Reveal bleibt optional.
   if (revealBtn) revealBtn.disabled = false;
 
   if (current.phase === "main") {
@@ -571,14 +593,12 @@ function nextPlayer() {
 }
 
 function endQuestionAndAdvance() {
-  // close question overlay
   if (overlay) overlay.classList.remove("show");
   stopAudio();
 
   current = null;
   buildBoard();
 
-  // endgame?
   if (used.size >= TOTAL_CLUES) {
     showEndScoreboard();
     syncSnapshot();
@@ -602,10 +622,8 @@ function answerMain(correct) {
     return;
   }
 
-  // falsch: - halbe Punkte
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
-  // buzzer phase
   current.phase = "buzzer";
   current.revealed = false;
   current.buzzLocked = false;
@@ -613,7 +631,6 @@ function answerMain(correct) {
   current.buzzQueue = [];
   current.buzzerActiveId = null;
 
-  // show buzzer area, answer hidden
   setAnswerVisible(false);
   renderBuzzerUI();
   updateHostButtonsForPhase();
@@ -634,14 +651,11 @@ function answerBuzzer(correct) {
     return;
   }
 
-  // falsch: - halbe Punkte
   addScoreByPlayerId(pid, -halfPoints(v));
 
-  // remove this buzzer, move to next
-  current.buzzQueue = (current.buzzQueue || []).filter(x => x !== pid);
+  current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
   current.buzzerActiveId = current.buzzQueue[0] || null;
 
-  // lock stays active, but active player changes
   if (!current.buzzerActiveId) {
     used.add(current.key);
     endQuestionAndAdvance();
@@ -666,7 +680,6 @@ function renderBuzzerUI() {
 
   if (current.phase !== "buzzer") return;
 
-  // ensure modalAnswer is visible to show buzzer
   if (modalAnswer) modalAnswer.classList.add("show");
   setAnswerVisible(false);
 
@@ -682,7 +695,6 @@ function renderBuzzerUI() {
       return;
     }
 
-    // lock after host selection
     if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">🔒 Gesperrt</div>
@@ -712,9 +724,13 @@ function renderBuzzerUI() {
 
     const buzzBtn = document.getElementById("buzzBtn");
     if (buzzBtn && !already) {
-      buzzBtn.addEventListener("click", () => {
-        emitSync({ type: "buzz", payload: { id: clientId } });
-      }, { once: true });
+      buzzBtn.addEventListener(
+        "click",
+        () => {
+          emitSync({ type: "buzz", payload: { id: clientId } });
+        },
+        { once: true }
+      );
     }
 
     return;
@@ -724,12 +740,16 @@ function renderBuzzerUI() {
   const queue = current.buzzQueue || [];
   const activeId = current.buzzerActiveId || null;
 
-  const items = queue.map(pid => {
-    const p = getPlayerById(pid);
-    const name = p ? p.name : pid;
-    const active = pid === activeId;
-    return `<button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
-  }).join("");
+  const items = queue
+    .map((pid) => {
+      const p = getPlayerById(pid);
+      const name = p ? p.name : pid;
+      const active = pid === activeId;
+      return `<button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(
+        pid
+      )}">${escapeHtml(name)}</button>`;
+    })
+    .join("");
 
   area.innerHTML = `
     <div class="buzzerHint">Buzz-Reihenfolge (klicken zum Auswählen)</div>
@@ -740,13 +760,13 @@ function renderBuzzerUI() {
     </div>
   `;
 
-  area.querySelectorAll(".buzzerPick").forEach(btn => {
+  area.querySelectorAll(".buzzerPick").forEach((btn) => {
     btn.addEventListener("click", () => {
       const pid = btn.getAttribute("data-pid");
       if (!pid) return;
 
       current.buzzerActiveId = pid;
-      current.buzzLocked = true; // lock after selection
+      current.buzzLocked = true;
 
       renderBuzzerUI();
       updateHostButtonsForPhase();
@@ -771,13 +791,17 @@ function showEndScoreboard() {
     { player: top3[2], rank: 3 },
   ];
 
-  podiumEl.innerHTML = order.map(({ player, rank }) => `
+  podiumEl.innerHTML = order
+    .map(
+      ({ player, rank }) => `
     <div class="podiumSlot rank${rank}">
       <div class="podiumRank">Platz ${rank}</div>
       <p class="podiumName">${escapeHtml(player.name)}</p>
       <div class="podiumScore">${player.score} Punkte</div>
     </div>
-  `).join("");
+  `
+    )
+    .join("");
 
   endOverlay.classList.add("show");
   endOverlay.setAttribute("aria-hidden", "false");
@@ -798,8 +822,7 @@ function resetGame() {
   if (overlay) overlay.classList.remove("show");
   current = null;
 
-  // scores 0, active = 0
-  players = players.map(p => ({ ...p, score: 0 }));
+  players = players.map((p) => ({ ...p, score: 0 }));
   activePlayerIndex = 0;
 
   renderPlayers();
@@ -809,35 +832,22 @@ function resetGame() {
 }
 
 /* =========================
-   Join / Rename (Boards -> Host)
-========================= */
-function sendJoin(name) {
-  emitSync({ type: "join", payload: { id: clientId, name } });
-}
-
-function sendRename(name) {
-  emitSync({ type: "rename", payload: { id: clientId, name } });
-}
-
-/* =========================
    Sync Listener
 ========================= */
 onSync((msg) => {
   if (!msg || !msg.type) return;
 
-  // server sends snapshot back
   if (msg.type === "snapshot") {
     if (!isHost) applySnapshot(msg.payload);
     return;
   }
 
-  // boards request_state -> host responds
   if (msg.type === "request_state") {
     if (isHost) syncSnapshot();
     return;
   }
 
-  // Host processes join/rename/buzz, then broadcasts snapshot
+  // Host verarbeitet join/buzz -> snapshot
   if (!isHost) return;
 
   if (msg.type === "join") {
@@ -858,21 +868,6 @@ onSync((msg) => {
     return;
   }
 
-  if (msg.type === "rename") {
-    const { id, name } = msg.payload || {};
-    if (!id) return;
-    const p = getPlayerById(id);
-    if (!p) return;
-
-    const safe = String(name || "").trim();
-    if (safe) p.name = safe;
-
-    renderPlayers();
-    renderTurn();
-    syncSnapshot();
-    return;
-  }
-
   if (msg.type === "buzz") {
     if (!current || current.phase !== "buzzer") return;
     if (current.buzzLocked) return;
@@ -886,7 +881,6 @@ onSync((msg) => {
     current.buzzed[pid] = true;
     current.buzzQueue.push(pid);
 
-    // optional: wenn noch keiner aktiv: setz aktiv (Host kann trotzdem umschalten)
     if (!current.buzzerActiveId) current.buzzerActiveId = pid;
 
     renderBuzzerUI();
@@ -902,17 +896,19 @@ onSync((msg) => {
 if (isHost) {
   if (revealBtn) revealBtn.onclick = revealAnswer;
 
-  if (rightBtn) rightBtn.onclick = () => {
-    if (!current) return;
-    if (current.phase === "main") answerMain(true);
-    else answerBuzzer(true);
-  };
+  if (rightBtn)
+    rightBtn.onclick = () => {
+      if (!current) return;
+      if (current.phase === "main") answerMain(true);
+      else answerBuzzer(true);
+    };
 
-  if (wrongBtn) wrongBtn.onclick = () => {
-    if (!current) return;
-    if (current.phase === "main") answerMain(false);
-    else answerBuzzer(false);
-  };
+  if (wrongBtn)
+    wrongBtn.onclick = () => {
+      if (!current) return;
+      if (current.phase === "main") answerMain(false);
+      else answerBuzzer(false);
+    };
 
   if (closeBtn) closeBtn.onclick = closeModal;
 
@@ -924,34 +920,50 @@ if (isHost) {
 
   if (resetBtn) resetBtn.onclick = resetGame;
 
-  if (endCloseBtn) endCloseBtn.onclick = () => { hideEndScoreboard(); syncSnapshot(); };
+  if (endCloseBtn)
+    endCloseBtn.onclick = () => {
+      hideEndScoreboard();
+      syncSnapshot();
+    };
+
   if (endNewGameBtn) endNewGameBtn.onclick = resetGame;
 
   if (endOverlay) {
     endOverlay.addEventListener("click", (e) => {
-      if (e.target === endOverlay) { hideEndScoreboard(); syncSnapshot(); }
+      if (e.target === endOverlay) {
+        hideEndScoreboard();
+        syncSnapshot();
+      }
     });
   }
 }
 
 /* =========================
-   Board Join UI
+   Board Join UI (FIXED – deine IDs)
 ========================= */
 if (!isHost) {
-  // Join button click
-  if (joinBtn && joinInput) {
-    joinBtn.addEventListener("click", () => {
-      const name = (joinInput.value || "").trim();
-      if (!name) return;
-      sendJoin(name);
-    });
+  function doJoin() {
+    const name = (joinNameEl?.value || "").trim();
+    if (!name) return;
+
+    emitSync({ type: "join", payload: { id: clientId, name } });
+
+    // optional sperren
+    if (joinBtnEl) joinBtnEl.disabled = true;
+    if (joinNameEl) joinNameEl.disabled = true;
   }
 
-  // optional: rename live
-  if (joinInput) {
-    joinInput.addEventListener("input", () => {
-      const name = (joinInput.value || "").trim();
-      if (name) sendRename(name);
+  if (joinBtnEl) joinBtnEl.addEventListener("click", doJoin);
+
+  if (joinNameEl) {
+    joinNameEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doJoin();
+    });
+
+    // falls doch nochmal ändern
+    joinNameEl.addEventListener("input", () => {
+      if (joinBtnEl) joinBtnEl.disabled = false;
+      if (joinNameEl) joinNameEl.disabled = false;
     });
   }
 }
