@@ -1,63 +1,94 @@
-const path = require("path");
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { WebSocketServer } = require("ws");
 
 const app = express();
-
-// Render: PORT kommt aus env (default 10000). :contentReference[oaicite:2]{index=2}
 const PORT = process.env.PORT || 10000;
 
-// 1) Statische Dateien aus /public serven
 app.use(express.static(path.join(__dirname, "public")));
-
-// Optional: Root weiterleiten
-app.get("/", (req, res) => res.redirect("/host.html"));
+app.get("/", (_, res) => res.redirect("/host.html"));
 
 const server = http.createServer(app);
-
-// 2) WebSocket auf dem gleichen HTTP-Server (gleicher Port!)
 const wss = new WebSocketServer({ server });
 
-// Einfacher In-Memory-State (für 1 Spiel)
-let snapshot = null;
+/* ===== GAME STATE (SERVER IST WAHRHEIT) ===== */
+let game = {
+  players: [],           // {id, name, score}
+  currentQuestion: null, // {value, phase, buzzedIds, activeBuzzer}
+};
 
-function broadcast(obj) {
-  const msg = JSON.stringify(obj);
-  for (const client of wss.clients) {
-    if (client.readyState === 1) client.send(msg);
-  }
+/* ===== HELPERS ===== */
+function broadcast(type, payload) {
+  const msg = JSON.stringify({ type, payload });
+  wss.clients.forEach(c => c.readyState === 1 && c.send(msg));
 }
 
+/* ===== WS ===== */
 wss.on("connection", (ws) => {
+
+  // Beim Verbinden kompletten State schicken
+  ws.send(JSON.stringify({ type: "state", payload: game }));
+
   ws.on("message", (raw) => {
     let msg;
-    try { msg = JSON.parse(raw.toString()); } catch { return; }
-    if (!msg?.type) return;
+    try { msg = JSON.parse(raw); } catch { return; }
 
-    // Board fragt State an
-    if (msg.type === "request_state") {
-      if (snapshot) ws.send(JSON.stringify({ type: "snapshot", payload: snapshot }));
-      return;
+    /* JOIN */
+    if (msg.type === "join") {
+      if (!game.players.find(p => p.id === msg.id)) {
+        game.players.push({ id: msg.id, name: msg.name, score: 0 });
+        broadcast("state", game);
+      }
     }
 
-    // Host sendet neuen Snapshot -> speichern + an alle broadcasten
-    if (msg.type === "snapshot") {
-      snapshot = msg.payload || null;
-      broadcast({ type: "snapshot", payload: snapshot });
-      return;
+    /* HOST ÖFFNET FRAGE */
+    if (msg.type === "open_question") {
+      game.currentQuestion = {
+        value: msg.value,
+        phase: "main",
+        buzzedIds: [],
+        activeBuzzer: null
+      };
+      broadcast("state", game);
     }
 
-    // Alles andere (join/rename/buzz/whatever) -> an alle weiterleiten
-    broadcast(msg);
+    /* HOST: HAUPTFRAGE RICHTIG/FALSCH */
+    if (msg.type === "main_answer") {
+      const player = game.players.find(p => p.id === msg.playerId);
+      if (player) {
+        player.score += msg.correct ? msg.value : -Math.floor(msg.value / 2);
+      }
+      game.currentQuestion.phase = msg.correct ? "done" : "buzzer";
+      broadcast("state", game);
+    }
+
+    /* BUZZER */
+    if (msg.type === "buzz") {
+      const q = game.currentQuestion;
+      if (!q || q.phase !== "buzzer") return;
+      if (!q.buzzedIds.includes(msg.playerId)) {
+        q.buzzedIds.push(msg.playerId);
+        q.activeBuzzer = msg.playerId;
+        broadcast("state", game);
+      }
+    }
+
+    /* BUZZER ANTWORT */
+    if (msg.type === "buzzer_answer") {
+      const p = game.players.find(p => p.id === msg.playerId);
+      if (!p) return;
+
+      p.score += msg.correct
+        ? Math.floor(game.currentQuestion.value / 2)
+        : -Math.floor(game.currentQuestion.value / 2);
+
+      game.currentQuestion.activeBuzzer = null;
+      broadcast("state", game);
+    }
   });
-
-  // Beim Connect direkt Snapshot senden (falls vorhanden)
-  if (snapshot) {
-    ws.send(JSON.stringify({ type: "snapshot", payload: snapshot }));
-  }
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port", PORT);
+server.listen(PORT, () => {
+  console.log("Server läuft auf Port", PORT);
 });
