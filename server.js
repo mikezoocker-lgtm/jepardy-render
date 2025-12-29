@@ -12,80 +12,48 @@ app.get("/", (_, res) => res.redirect("/host.html"));
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-/* ===== GAME STATE (SERVER IST WAHRHEIT) ===== */
-let game = {
-  players: [],           // {id, name, score}
-  currentQuestion: null, // {value, phase, buzzedIds, activeBuzzer}
-};
+// Wir merken uns den letzten Snapshot (vom Host)
+let lastSnapshot = null;
 
-/* ===== HELPERS ===== */
-function broadcast(type, payload) {
-  const msg = JSON.stringify({ type, payload });
-  wss.clients.forEach(c => c.readyState === 1 && c.send(msg));
+function broadcast(obj) {
+  const raw = JSON.stringify(obj);
+  wss.clients.forEach((c) => {
+    if (c.readyState === 1) c.send(raw);
+  });
 }
 
-/* ===== WS ===== */
 wss.on("connection", (ws) => {
-
-  // Beim Verbinden kompletten State schicken
-  ws.send(JSON.stringify({ type: "state", payload: game }));
+  // Wenn ein Client verbindet und wir haben schon einen Snapshot -> direkt schicken
+  if (lastSnapshot) {
+    ws.send(JSON.stringify({ type: "snapshot", payload: lastSnapshot }));
+  }
 
   ws.on("message", (raw) => {
     let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      return;
+    }
 
-    /* JOIN */
-    if (msg.type === "join") {
-      if (!game.players.find(p => p.id === msg.id)) {
-        game.players.push({ id: msg.id, name: msg.name, score: 0 });
-        broadcast("state", game);
+    // 1) Host schickt Snapshot -> speichern + an alle broadcasten
+    if (msg.type === "snapshot") {
+      lastSnapshot = msg.payload || null;
+      broadcast({ type: "snapshot", payload: lastSnapshot });
+      return;
+    }
+
+    // 2) Jeder Client kann aktuellen State anfordern -> zurückschicken
+    if (msg.type === "request_state") {
+      if (lastSnapshot) {
+        ws.send(JSON.stringify({ type: "snapshot", payload: lastSnapshot }));
       }
+      return;
     }
 
-    /* HOST ÖFFNET FRAGE */
-    if (msg.type === "open_question") {
-      game.currentQuestion = {
-        value: msg.value,
-        phase: "main",
-        buzzedIds: [],
-        activeBuzzer: null
-      };
-      broadcast("state", game);
-    }
-
-    /* HOST: HAUPTFRAGE RICHTIG/FALSCH */
-    if (msg.type === "main_answer") {
-      const player = game.players.find(p => p.id === msg.playerId);
-      if (player) {
-        player.score += msg.correct ? msg.value : -Math.floor(msg.value / 2);
-      }
-      game.currentQuestion.phase = msg.correct ? "done" : "buzzer";
-      broadcast("state", game);
-    }
-
-    /* BUZZER */
-    if (msg.type === "buzz") {
-      const q = game.currentQuestion;
-      if (!q || q.phase !== "buzzer") return;
-      if (!q.buzzedIds.includes(msg.playerId)) {
-        q.buzzedIds.push(msg.playerId);
-        q.activeBuzzer = msg.playerId;
-        broadcast("state", game);
-      }
-    }
-
-    /* BUZZER ANTWORT */
-    if (msg.type === "buzzer_answer") {
-      const p = game.players.find(p => p.id === msg.playerId);
-      if (!p) return;
-
-      p.score += msg.correct
-        ? Math.floor(game.currentQuestion.value / 2)
-        : -Math.floor(game.currentQuestion.value / 2);
-
-      game.currentQuestion.activeBuzzer = null;
-      broadcast("state", game);
-    }
+    // 3) ALLE anderen Messages (join, buzz, etc.) an alle weiterleiten
+    //    => Host kann sie verarbeiten und danach Snapshot senden
+    broadcast(msg);
   });
 });
 
