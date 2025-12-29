@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz – Host</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-role="host">
+
+  <div class="app">
+
+    <div class="centerLogo">
+      <img src="logo.png" alt="Quiz Logo">
+    </div>
+
+    <section class="playersPanel">
+      <div class="panelTop">
+        <div class="panelControls">
+          <div class="pill" id="turnPill">—</div>
+          <button class="btn" id="resetBtn">Neues Spiel</button>
+        </div>
+      </div>
+
+      <div class="playersHeader">
+        <h2>Spieler (Host)</h2>
+        <div class="playersActions">
+          <button class="btn" id="addPlayerBtn">+ Spieler</button>
+          <button class="btn" id="removePlayerBtn">− Spieler</button>
+        </div>
+      </div>
+
+      <div class="players" id="players"></div>
+    </section>
+
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- Frage-Modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modalTop">
+        <div class="meta">
+          <div class="tag">
+            <b id="modalCategory">Kategorie</b> ·
+            <span id="modalValue">100</span> Punkte
+          </div>
+          <div class="question" id="modalQuestion"></div>
+        </div>
+        <button class="btn btnGhost" id="closeBtn">✕</button>
+      </div>
+
+      <div class="answer" id="modalAnswer"></div>
+
+      <div class="actions">
+        <button class="btn btnPrimary" id="revealBtn">Antwort zeigen</button>
+        <button class="btn btnNo" id="wrongBtn">Falsch</button>
+        <button class="btn btnOk" id="rightBtn">Richtig</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Endscreen / Scoreboard -->
+  <div class="overlay" id="endOverlay" aria-hidden="true">
+    <div class="modal endModal">
+      <div class="modalTop">
+        <div class="meta">
+          <div class="tag">
+            <b>Spiel beendet</b> · <span>Top 3</span>
+          </div>
+        </div>
+        <button class="btn btnGhost" id="endCloseBtn">✕</button>
+      </div>
+
+      <div class="podium" id="podium"></div>
+
+      <div class="actions">
+        <button class="btn btnPrimary" id="endNewGameBtn">Neues Spiel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

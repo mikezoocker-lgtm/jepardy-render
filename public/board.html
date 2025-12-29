@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz – Board</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-role="board">
+
+  <div class="app">
+
+    <div class="centerLogo">
+      <img src="logo.png" alt="Quiz Logo">
+    </div>
+
+    <section class="playersPanel">
+      <div class="joinBar">
+        <input id="joinName" type="text" placeholder="Dein Name…" autocomplete="off">
+        <button class="btn" id="joinBtn">Beitreten</button>
+      </div>
+
+      <div class="playersHeader">
+        <h2>Spieler</h2>
+      </div>
+
+      <div class="players" id="players"></div>
+    </section>
+
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- Frage-Modal (Board: Anzeige + Buzz) -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modalTop">
+        <div class="meta">
+          <div class="tag">
+            <b id="modalCategory">Kategorie</b> ·
+            <span id="modalValue">100</span> Punkte
+          </div>
+          <div class="question" id="modalQuestion"></div>
+        </div>
+      </div>
+
+      <div class="answer" id="modalAnswer"></div>
+    </div>
+  </div>
+
+  <!-- Endscreen / Scoreboard -->
+  <div class="overlay" id="endOverlay" aria-hidden="true">
+    <div class="modal endModal">
+      <div class="modalTop">
+        <div class="meta">
+          <div class="tag">
+            <b>Spiel beendet</b> · <span>Top 3</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="podium" id="podium"></div>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
