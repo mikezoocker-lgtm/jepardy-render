@@ -57,7 +57,7 @@ body{
   padding: 8px 0 0;
 }
 .centerLogo img{
-  width: min(520px, 65vw);
+  width: min(200px, 65vw);
   height: auto;
   filter: drop-shadow(0 18px 40px rgba(0,0,0,.55));
   opacity: .95;

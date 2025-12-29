@@ -87,7 +87,6 @@ const clientId = getClientId();
 
 /* =========================
    GAME DATA
-   (Hier pflegst du deine Kategorien/Fragen)
 ========================= */
 let gameData = {
   categories: [
@@ -695,6 +694,16 @@ function renderBuzzerUI() {
       return;
     }
 
+    // ❌ Der aktive Spieler (Hauptspieler) darf nicht buzzern
+    const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
+    if (isMainTurnPlayer) {
+      area.innerHTML = `
+        <div class="buzzerHint">🚫 Du bist dran</div>
+        <div class="buzzerLocked">Der aktive Spieler darf nicht buzzern.</div>
+      `;
+      return;
+    }
+
     if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">🔒 Gesperrt</div>
@@ -876,6 +885,9 @@ onSync((msg) => {
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
+    // ❌ Aktiver Spieler darf nicht buzzern (Sicherheits-Check)
+    if (current?.mainPlayerId && pid === current.mainPlayerId) return;
+
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
@@ -948,7 +960,6 @@ if (!isHost) {
 
     emitSync({ type: "join", payload: { id: clientId, name } });
 
-    // optional sperren
     if (joinBtnEl) joinBtnEl.disabled = true;
     if (joinNameEl) joinNameEl.disabled = true;
   }
@@ -960,7 +971,6 @@ if (!isHost) {
       if (e.key === "Enter") doJoin();
     });
 
-    // falls doch nochmal ändern
     joinNameEl.addEventListener("input", () => {
       if (joinBtnEl) joinBtnEl.disabled = false;
       if (joinNameEl) joinNameEl.disabled = false;
