@@ -1,7 +1,9 @@
 /*************************************************
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
- * - Host baut/steuert, Boards schauen & buzzern
- * - Server: relayed Nachrichten + speichert letzten Snapshot
+ * + 30s TIMER pro Frage (Main) und pro Buzzer-Auswahl
+ * - Host authoritativ: Host setzt endsAt + entscheidet Timeout
+ * - Boards zeigen Restzeit (aus endsAt im Snapshot)
+ * - KEIN Timer bei Soundtracks (clue.audio)
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -133,7 +135,11 @@ let gameData = {
           a: "Stockholm-Syndrom",
         },
         { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
-        { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
+        {
+          value: 500,
+          q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?",
+          a: "Salat / roter Römersalat",
+        },
       ],
     },
     {
@@ -143,7 +149,7 @@ let gameData = {
         { value: 200, img: "Bilder/2.png", a: "Lux" },
         { value: 300, img: "Bilder/3.jpg", a: "Beyblade" },
         { value: 400, img: "Bilder/4.png", a: "Agumon (Digimon)" },
-        { value: 500, img: "Bilder/5.jpg", a: "Zonk" },
+        { value: 500, img: "Bilder/5.png", a: "Zonk" },
       ],
     },
     {
@@ -245,7 +251,6 @@ function clamp(n, min, max) {
 function halfPoints(v) {
   return Math.floor((v || 0) / 2);
 }
-
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
     "&": "&amp;",
@@ -255,31 +260,187 @@ function escapeHtml(str) {
     "'": "&#039;",
   }[m]));
 }
-
 function getActivePlayer() {
   return players[activePlayerIndex] || null;
 }
 function getPlayerById(id) {
   return players.find((p) => p.id === id) || null;
 }
-
 function renderTurn() {
   const p = getActivePlayer();
   if (!turnPill) return;
   turnPill.textContent = p ? `${p.name} ist dran!` : "Warte auf Spieler…";
 }
 
+function showToastInModal(text) {
+  if (!modalQuestion) return;
+
+  // alten Toast entfernen
+  const old = document.getElementById("timeoutToast");
+  if (old) old.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "timeoutToast";
+  toast.className = "timeoutToast";
+  toast.textContent = text;
+
+  modalQuestion.appendChild(toast);
+
+  // nach kurzer Zeit ausblenden
+  setTimeout(() => {
+    toast.classList.add("hide");
+    setTimeout(() => toast.remove(), 300);
+  }, 900);
+}
+
+/* =========================
+   Audio
+========================= */
 function stopAudio() {
   if (!currentAudio) return;
   currentAudio.pause();
   currentAudio.currentTime = 0;
   currentAudio = null;
 }
-
 function playAudio(src) {
   stopAudio();
   currentAudio = new Audio(src);
   currentAudio.play().catch(() => {});
+}
+
+/* =========================
+   TIMER (30s) – Host authoritativ
+   - gespeichert in current.timer = { endsAt, mode, targetId }
+   - Boards rechnen Restzeit aus endsAt
+   - Kein Timer bei Soundtracks (clue.audio)
+========================= */
+const TIMER_SECONDS = 30;
+const TIMER_MS = TIMER_SECONDS * 1000;
+
+let hostTimerInterval = null;
+let uiTimerInterval = null;
+
+function stopAllTimers() {
+  if (hostTimerInterval) clearInterval(hostTimerInterval);
+  if (uiTimerInterval) clearInterval(uiTimerInterval);
+  hostTimerInterval = null;
+  uiTimerInterval = null;
+}
+
+function ensureTimerUI() {
+  if (!modalQuestion) return;
+  let wrap = document.getElementById("timerWrap");
+  if (wrap) return;
+
+  wrap = document.createElement("div");
+  wrap.id = "timerWrap";
+  wrap.className = "timerWrap";
+  wrap.innerHTML = `
+    <div class="timerTop">
+      <span id="timerLabel"></span>
+      <span id="timerText"></span>
+    </div>
+    <div class="timerBar">
+      <div class="timerFill" id="timerFill"></div>
+    </div>
+  `;
+  modalQuestion.appendChild(wrap);
+}
+
+function renderTimerUI() {
+  ensureTimerUI();
+
+  const wrap = document.getElementById("timerWrap");
+  if (!wrap) return;
+
+  const fill = document.getElementById("timerFill");
+  const text = document.getElementById("timerText");
+  const label = document.getElementById("timerLabel");
+
+  if (!current?.timer?.endsAt) {
+    wrap.style.display = "none";
+    if (fill) fill.style.width = "0%";
+    if (text) text.textContent = "";
+    if (label) label.textContent = "";
+    return;
+  }
+
+  wrap.style.display = "block";
+
+  const remaining = Math.max(0, current.timer.endsAt - Date.now());
+  const seconds = Math.ceil(remaining / 1000);
+  const percent = 100 - (remaining / TIMER_MS) * 100;
+
+  if (fill) fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  if (text) text.textContent = `${seconds}s`;
+
+  let pid = current.timer.targetId;
+  const p = pid ? getPlayerById(pid) : null;
+  if (label) label.textContent = `⏳ ${p?.name || "Spieler"}`;
+
+  // wenn abgelaufen und wir sind Board: UI kann stoppen (Host entscheidet)
+  if (remaining <= 0 && !isHost) {
+    if (uiTimerInterval) {
+      clearInterval(uiTimerInterval);
+      uiTimerInterval = null;
+    }
+  }
+}
+
+function startUiTimer() {
+  if (uiTimerInterval) clearInterval(uiTimerInterval);
+  uiTimerInterval = setInterval(renderTimerUI, 100);
+}
+
+function clueHasNoTimer(clue) {
+  return !!clue?.audio; // Soundtracks: kein Timer
+}
+
+function startTurnTimer(mode, targetId = null) {
+  if (!current) return;
+
+  // Timer nur, wenn erlaubt
+  const clue = gameData.categories[current.ci]?.clues?.[current.qi];
+  if (clueHasNoTimer(clue)) {
+    // sicherheitshalber UI aus
+    current.timer = null;
+    renderTimerUI();
+    if (isHost) syncSnapshot();
+    return;
+  }
+
+  // Host setzt authoritativ
+  if (isHost) {
+    current.timer = {
+      mode, // "main" | "buzzer"
+      targetId,
+      endsAt: Date.now() + TIMER_MS,
+    };
+
+    syncSnapshot();
+
+    if (hostTimerInterval) clearInterval(hostTimerInterval);
+    hostTimerInterval = setInterval(() => {
+      if (!current?.timer?.endsAt) return;
+if (Date.now() >= current.timer.endsAt) {
+  showToastInModal("⏰ Zeit abgelaufen!");
+  syncSnapshot(); // damit Boards das auch sehen
+  setTimeout(() => {
+    if (!current) return;
+    if (current.phase === "main") answerMain(false);
+    else if (current.phase === "buzzer") answerBuzzer(false);
+  }, 350);
+}
+  startUiTimer();
+  renderTimerUI();
+}
+
+function clearTurnTimer() {
+  if (!current) return;
+  current.timer = null;
+  stopAllTimers();
+  renderTimerUI();
+  if (isHost) syncSnapshot();
 }
 
 /* =========================
@@ -327,10 +488,16 @@ function applySnapshot(s) {
 
         setAnswerVisible(!!current.revealed);
         renderBuzzerUI();
+
+        // Timer Anzeige live im Board
+        startUiTimer();
+        renderTimerUI();
       }
     } else {
       overlay.classList.remove("show");
       stopAudio();
+      stopAllTimers();
+      renderTimerUI();
     }
   }
 
@@ -394,7 +561,7 @@ function renderPlayers() {
 }
 
 /* =========================
-   Board UI (wie vorher)
+   Board UI
 ========================= */
 function buildBoard() {
   if (!board) return;
@@ -492,6 +659,10 @@ function fillModalFromClue(clue, categoryName, value) {
   }
 
   setAnswerVisible(false);
+
+  // Timer UI direkt rendern (wenn current.timer existiert)
+  startUiTimer();
+  renderTimerUI();
 }
 
 /* =========================
@@ -519,6 +690,9 @@ function openQuestion(ci, qi) {
     buzzerActiveId: null,
 
     mainPlayerId,
+
+    timer: null, // ✅ timer state
+
     ...clue,
   };
 
@@ -531,14 +705,19 @@ function openQuestion(ci, qi) {
   renderBuzzerUI();
 
   if (overlay) overlay.classList.add("show");
+
+  // ✅ Start Main-Timer (außer Soundtracks)
+  if (!clueHasNoTimer(clue)) startTurnTimer("main", current.mainPlayerId);
+
   syncSnapshot();
 }
 
 function closeModal() {
   if (!isHost) return;
   if (overlay) overlay.classList.remove("show");
-  current = null;
   stopAudio();
+  clearTurnTimer();
+  current = null;
   syncSnapshot();
 }
 
@@ -594,6 +773,7 @@ function nextPlayer() {
 function endQuestionAndAdvance() {
   if (overlay) overlay.classList.remove("show");
   stopAudio();
+  clearTurnTimer();
 
   current = null;
   buildBoard();
@@ -610,6 +790,8 @@ function endQuestionAndAdvance() {
 
 function answerMain(correct) {
   if (!isHost || !current) return;
+
+  clearTurnTimer();
 
   const v = current.value || 0;
   const mainId = current.mainPlayerId;
@@ -630,6 +812,8 @@ function answerMain(correct) {
   current.buzzQueue = [];
   current.buzzerActiveId = null;
 
+  current.timer = null;
+
   setAnswerVisible(false);
   renderBuzzerUI();
   updateHostButtonsForPhase();
@@ -638,6 +822,8 @@ function answerMain(correct) {
 
 function answerBuzzer(correct) {
   if (!isHost || !current) return;
+
+  clearTurnTimer();
 
   const v = current.value || 0;
   const pid = current.buzzerActiveId;
@@ -654,6 +840,7 @@ function answerBuzzer(correct) {
 
   current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
   current.buzzerActiveId = current.buzzQueue[0] || null;
+  current.buzzLocked = false; // Host muss neu auswählen
 
   if (!current.buzzerActiveId) {
     used.add(current.key);
@@ -717,7 +904,7 @@ function renderBuzzerUI() {
     if (current.buzzLocked && current.buzzerActiveId && clientId === current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">✅ DU bist dran!</div>
-        <div class="buzzerLocked">Warte auf Host (Richtig/Falsch)…</div>
+        <div class="buzzerLocked">Du hast 30 Sekunden – Host entscheidet Richtig/Falsch.</div>
       `;
       return;
     }
@@ -777,6 +964,9 @@ function renderBuzzerUI() {
       current.buzzerActiveId = pid;
       current.buzzLocked = true;
 
+      // ✅ Start Buzzer-Timer (außer Soundtracks)
+      startTurnTimer("buzzer", pid);
+
       renderBuzzerUI();
       updateHostButtonsForPhase();
       syncSnapshot();
@@ -829,6 +1019,7 @@ function resetGame() {
 
   stopAudio();
   if (overlay) overlay.classList.remove("show");
+  if (current) clearTurnTimer();
   current = null;
 
   players = players.map((p) => ({ ...p, score: 0 }));
