@@ -402,8 +402,9 @@ function startTurnTimer(mode, targetId = null) {
   // Timer nur, wenn erlaubt
   const clue = gameData.categories[current.ci]?.clues?.[current.qi];
   if (clueHasNoTimer(clue)) {
-    // sicherheitshalber UI aus
+    // Soundtracks: kein Timer
     current.timer = null;
+    stopAllTimers();
     renderTimerUI();
     if (isHost) syncSnapshot();
     return;
@@ -420,17 +421,29 @@ function startTurnTimer(mode, targetId = null) {
     syncSnapshot();
 
     if (hostTimerInterval) clearInterval(hostTimerInterval);
+
     hostTimerInterval = setInterval(() => {
       if (!current?.timer?.endsAt) return;
-if (Date.now() >= current.timer.endsAt) {
-  showToastInModal("⏰ Zeit abgelaufen!");
-  syncSnapshot(); // damit Boards das auch sehen
-  setTimeout(() => {
-    if (!current) return;
-    if (current.phase === "main") answerMain(false);
-    else if (current.phase === "buzzer") answerBuzzer(false);
-  }, 350);
-}
+
+      if (Date.now() >= current.timer.endsAt) {
+        // Timer abgelaufen -> kurz anzeigen, dann "falsch" auslösen
+        showToastInModal("⏰ Zeit abgelaufen!");
+        syncSnapshot();
+
+        // wichtig: Interval stoppen, sonst triggert es mehrfach
+        clearInterval(hostTimerInterval);
+        hostTimerInterval = null;
+
+        setTimeout(() => {
+          if (!current) return;
+          if (current.phase === "main") answerMain(false);
+          else if (current.phase === "buzzer") answerBuzzer(false);
+        }, 350);
+      }
+    }, 200);
+  }
+
+  // UI Timer auf Host & Board
   startUiTimer();
   renderTimerUI();
 }
