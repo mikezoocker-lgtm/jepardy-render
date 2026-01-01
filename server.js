@@ -1,25 +1,30 @@
-// server.js
-// Minimaler Express + WebSocket Server (Render/GitHub geeignet)
-
 const path = require("path");
 const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 
 const app = express();
-app.use(express.static(path.join(__dirname))); // served host.html, board.html, style.css, script.js, assets
+
+// ✅ Statische Dateien aus /public ausliefern
+const PUBLIC_DIR = path.join(__dirname, "public");
+app.use(express.static(PUBLIC_DIR));
+
+// optional: Root weiterleiten
+app.get("/", (req, res) => {
+  res.redirect("/host.html");
+});
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// letzter Snapshot (vom Host)
+// ---- simple relay + last snapshot memory
 let lastSnapshot = null;
 
 function broadcast(obj) {
   const raw = JSON.stringify(obj);
-  wss.clients.forEach((client) => {
+  for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN) client.send(raw);
-  });
+  }
 }
 
 wss.on("connection", (socket) => {
@@ -31,28 +36,30 @@ wss.on("connection", (socket) => {
       return;
     }
 
-    // Host sendet Snapshot -> speichern + broadcast
-    if (msg?.type === "snapshot") {
-      lastSnapshot = msg.payload || null;
-      broadcast(msg);
-      return;
-    }
+    // snapshot merken
+    if (msg?.type === "snapshot") lastSnapshot = msg;
 
-    // Client fragt State an -> antworten nur an diesen Client
+    // request_state -> snapshot zurück an den Anfragenden
     if (msg?.type === "request_state") {
       if (lastSnapshot) {
-        socket.send(JSON.stringify({ type: "snapshot", payload: lastSnapshot }));
+        try {
+          socket.send(JSON.stringify(lastSnapshot));
+        } catch {}
       }
       return;
     }
 
-    // Alles andere einfach broadcasten (join, buzz, etc.)
+    // alle anderen Nachrichten relayn
     broadcast(msg);
   });
+
+  // beim Connect sofort letzten Snapshot schicken (falls vorhanden)
+  if (lastSnapshot) {
+    try {
+      socket.send(JSON.stringify(lastSnapshot));
+    } catch {}
+  }
 });
 
-// Render nutzt PORT env
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log("Server listening on port", PORT);
-});
+server.listen(PORT, () => console.log("Server running on port", PORT));
