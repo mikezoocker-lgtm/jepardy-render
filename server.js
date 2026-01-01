@@ -5,6 +5,26 @@ const WebSocket = require("ws");
 
 const app = express();
 
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "media-src 'self'",
+      "connect-src 'self' wss:",
+      "font-src 'self' data:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'self'",
+    ].join("; ")
+  );
+  next();
+});
+
+
 // ✅ Statische Dateien aus /public ausliefern
 const PUBLIC_DIR = path.join(__dirname, "public");
 app.use(express.static(PUBLIC_DIR));
