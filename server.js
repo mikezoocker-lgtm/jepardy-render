@@ -1,79 +1,83 @@
-const path = require("path");
-const express = require("express");
-const http = require("http");
-const WebSocket = require("ws");
+// server.js
+import express from "express";
+import http from "http";
+import path from "path";
+import { WebSocketServer } from "ws";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// ✅ CSP: erlaubt deine lokalen Dateien + WebSocket + Bilder + Audio
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self'",                 // kein inline script nötig
+      "style-src 'self' 'unsafe-inline'",  // CSS ok (unsafe-inline nur für style)
       "img-src 'self' data:",
-      "media-src 'self'",
-      "connect-src 'self' wss:",
       "font-src 'self' data:",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "frame-ancestors 'self'",
+      "media-src 'self'",                  // mp3
+      "connect-src 'self' ws: wss:",       // WebSocket
     ].join("; ")
   );
   next();
 });
 
+// ✅ Static files (host.html/board.html/style.css/script.js usw.)
+// Wenn du alles im Root liegen hast: __dirname
+app.use(express.static(__dirname));
 
-// ✅ Statische Dateien aus /public ausliefern
-const PUBLIC_DIR = path.join(__dirname, "public");
-app.use(express.static(PUBLIC_DIR));
-
-// optional: Root weiterleiten
+// Fallback: Root -> host.html (optional)
 app.get("/", (req, res) => {
-  res.redirect("/host.html");
+  res.sendFile(path.join(__dirname, "host.html"));
 });
 
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
 
-// ---- simple relay + last snapshot memory
+// WebSocket
+const wss = new WebSocketServer({ server });
+
+// ✅ letzer Snapshot wird gespeichert
 let lastSnapshot = null;
 
-function broadcast(obj) {
-  const raw = JSON.stringify(obj);
-  for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) client.send(raw);
-  }
-}
-
 wss.on("connection", (socket) => {
-  socket.on("message", (buf) => {
+  socket.on("message", (raw) => {
     let msg;
     try {
-      msg = JSON.parse(buf.toString());
+      msg = JSON.parse(raw.toString());
     } catch {
       return;
     }
 
-    // snapshot merken
-    if (msg?.type === "snapshot") lastSnapshot = msg;
+    // snapshot speichern
+    if (msg.type === "snapshot") {
+      lastSnapshot = msg;
+    }
 
-    // request_state -> snapshot zurück an den Anfragenden
-    if (msg?.type === "request_state") {
-      if (lastSnapshot) {
-        try {
-          socket.send(JSON.stringify(lastSnapshot));
-        } catch {}
-      }
+    // request_state beantworten
+    if (msg.type === "request_state" && lastSnapshot) {
+      try {
+        socket.send(JSON.stringify(lastSnapshot));
+      } catch {}
       return;
     }
 
-    // alle anderen Nachrichten relayn
-    broadcast(msg);
+    // an alle broadcasten
+    const payload = JSON.stringify(msg);
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        try {
+          client.send(payload);
+        } catch {}
+      }
+    });
   });
 
-  // beim Connect sofort letzten Snapshot schicken (falls vorhanden)
+  // Bei Connect: snapshot schicken, falls vorhanden
   if (lastSnapshot) {
     try {
       socket.send(JSON.stringify(lastSnapshot));
@@ -82,4 +86,4 @@ wss.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log("Server running on port", PORT));
+server.listen(PORT, () => console.log("Server läuft auf Port", PORT));
