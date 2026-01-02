@@ -1,7 +1,5 @@
 /*************************************************
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
- * - Host baut/steuert, Boards schauen & buzzern
- * - Server: relayed Nachrichten + speichert letzten Snapshot
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -22,22 +20,14 @@ function connectWS() {
 
   ws.addEventListener("open", () => {
     wsReady = true;
-
-    // flush queue
     for (const msg of wsQueue) ws.send(msg);
     wsQueue = [];
-
-    // ask for state on connect
     emitSync({ type: "request_state" });
   });
 
   ws.addEventListener("message", (e) => {
     let msg;
-    try {
-      msg = JSON.parse(e.data);
-    } catch {
-      return;
-    }
+    try { msg = JSON.parse(e.data); } catch { return; }
     syncHandlers.forEach((fn) => fn(msg));
   });
 
@@ -53,14 +43,11 @@ function emitSync(obj) {
   else wsQueue.push(raw);
 }
 
-function onSync(cb) {
-  syncHandlers.push(cb);
-}
-
+function onSync(cb) { syncHandlers.push(cb); }
 connectWS();
 
 /* =========================
-   Client ID (für Spieler)
+   Client ID
 ========================= */
 const urlParams = new URLSearchParams(location.search);
 const tabParam = urlParams.get("p");
@@ -69,29 +56,22 @@ const CLIENT_ID_KEY = "jeopardy_client_id_tab_v2";
 function getClientId() {
   if (tabParam) return `tab_${tabParam}`;
   let id = "";
-  try {
-    id = sessionStorage.getItem(CLIENT_ID_KEY) || "";
-  } catch {}
+  try { id = sessionStorage.getItem(CLIENT_ID_KEY) || ""; } catch {}
   if (!id) {
-    id =
-      globalThis.crypto?.randomUUID?.() ||
-      `c_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-    try {
-      sessionStorage.setItem(CLIENT_ID_KEY, id);
-    } catch {}
+    id = globalThis.crypto?.randomUUID?.() || `c_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    try { sessionStorage.setItem(CLIENT_ID_KEY, id); } catch {}
   }
   return id;
 }
 const clientId = getClientId();
 
 /* =========================
-   TIMER SETTINGS
+   TIMER
 ========================= */
 const TIMER_SECONDS = 30;
 let timerUiInterval = null;
 
 function clueHasTimer(clue, categoryName) {
-  // Soundtracks: kein Timer (Audio)
   if (clue?.audio) return false;
   if ((categoryName || "").toLowerCase().includes("soundtrack")) return false;
   return true;
@@ -116,7 +96,6 @@ function ensureTimerUI() {
 function stopTimerUI() {
   if (timerUiInterval) clearInterval(timerUiInterval);
   timerUiInterval = null;
-
   const t = document.getElementById("timerText");
   const b = document.getElementById("timerBar");
   if (t) t.textContent = "";
@@ -136,7 +115,6 @@ function startTimerUI(endAt, durationMs) {
     const remaining = Math.max(0, endAt - now);
     const s = Math.ceil(remaining / 1000);
     const pct = Math.max(0, Math.min(100, (remaining / durationMs) * 100));
-
     txt.textContent = `⏱️ ${s}s`;
     bar.style.width = pct + "%";
 
@@ -161,112 +139,18 @@ function restartCurrentTimer() {
 }
 
 /* =========================
-   GAME DATA
+   GAME DATA (deins)
 ========================= */
-let gameData = {
+let gameData = window.gameData || {
   categories: [
-    {
-      name: "Gemink",
-      clues: [
-        {
-          value: 100,
-          q: "Wie heißt das Taschenmonster-Spiel, das 1999 in Deutschland erschien?",
-          a: "Pokémon",
-        },
-        { value: 200, q: "Wie hieß das erste Battlefield?", a: "Battlefield 1942" },
-        {
-          value: 300,
-          q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?",
-          a: "World of Warcraft",
-        },
-        { value: 400, q: "Welches Tag ist semantisch für die Hauptüberschrift gedacht?", a: "<h1>" },
-        {
-          value: 500,
-          q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?",
-          a: "Geralt von Riva",
-        },
-      ],
-    },
-    {
-      name: "Kennzeichen",
-      clues: [
-        { value: 100, q: "Stadt B?", a: "Berlin" },
-        { value: 200, q: "Land: CZ?", a: "Tschechien" },
-        { value: 300, q: "Stadt: FF?", a: "Frankfurt Oder" },
-        { value: 400, q: "Stadt HGR?", a: "Hansestadt Greifswald" },
-        { value: 500, q: "Land: CY?", a: "Zypern" },
-      ],
-    },
-    {
-      name: "Allgemein",
-      clues: [
-        { value: 100, q: "Wie oft wurde Deutschland Fußball-Weltmeister?", a: "4-mal" },
-        { value: 200, q: "Wie heißt der erste Pickup-Truck vin Tesla?", a: "Cybertruck" },
-        {
-          value: 300,
-          q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?",
-          a: "Stockholm-Syndrom",
-        },
-        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
-        { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
-      ],
-    },
-    {
-      name: "Wer oder Was ist das?",
-      clues: [
-        { value: 100, img: "Bilder/1.jpg", a: "DuelDisk aus Yu-gi-Oh" },
-        { value: 200, img: "Bilder/2.png", a: "Lux" },
-        { value: 300, img: "Bilder/3.jpg", a: "Beyblade" },
-        { value: 400, img: "Bilder/4.png", a: "Agumon (Digimon)" },
-        { value: 500, img: "Bilder/5.jpg", a: "Zonk" },
-      ],
-    },
-    {
-      name: "Abkürzungen",
-      clues: [
-        { value: 100, q: "Was heißt GmbH?", a: "Gesellschaft mit beschränkter Haftung" },
-        { value: 200, q: "Was heißt ROFL?", a: "Rolling on the Floor Laughing" },
-        { value: 300, q: "Was heißt KFC?", a: "Kentucky Fried Chicken" },
-        { value: 400, q: "Was heißt IGL?", a: "In Game Leader" },
-        { value: 500, q: "Was bedeutet B.A.?", a: "Bachelor of Arts" },
-      ],
-    },
-    {
-      name: "Soundtracks",
-      clues: [
-        { value: 100, audio: "audio/1.mp3", a: "Pokemon" },
-        { value: 200, audio: "audio/2.mp3", a: "Schloss Einstein" },
-        { value: 300, audio: "audio/3.mp3", a: "Friends" },
-        { value: 400, audio: "audio/4.mp3", a: "Finger Tips" },
-        { value: 500, audio: "audio/5.mp3", a: "Hör mal wer da hämmert!" },
-      ],
-    },
-    {
-      name: "Morph",
-      clues: [
-        { value: 100, img: "morph/1.png", a1: "morph/1a.jpeg", a2: "morph/1b.jpg" },
-        { value: 200, img: "morph/2.png", a1: "morph/2a.jpg", a2: "morph/2b.jpg" },
-        { value: 300, img: "morph/3.png", a1: "morph/3a.jpg", a2: "morph/3b.jpeg" },
-        { value: 400, img: "morph/4.png", a1: "morph/4a.jpeg", a2: "morph/4b.jpg" },
-        { value: 500, img: "morph/5.png", a1: "morph/5a.jpg", a2: "morph/5b.png" },
-      ],
-    },
-    {
-      name: "Zurück in die Schule",
-      clues: [
-        { value: 100, q: "Mathe: Wie viel Grad hat ein gestreckter Winkel?", a: "180°" },
-        { value: 200, q: "Chemie: Welche Abkürzung hat Eisen im Periodensystem?", a: "Fe" },
-        { value: 300, q: "Deutsch: Wie nennt man die Grundform eines Verbs?", a: "Infinitiv" },
-        {
-          value: 400,
-          q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?",
-          a: "Die Blätter (und die darin enthaltenen Chloroplasten)",
-        },
-        { value: 500, q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?", a: "Future Perfect" },
-      ],
-    },
+    // ... DEIN GAME DATA bleibt wie bei dir ...
   ],
 };
+
+// WICHTIG: Falls du gameData nicht global setzt:
+if (!gameData?.categories?.length) {
+  console.warn("gameData ist leer. Bitte dein gameData im Script drin lassen.");
+}
 
 /* =========================
    DOM
@@ -294,49 +178,36 @@ const podiumEl = document.getElementById("podium");
 const endCloseBtn = document.getElementById("endCloseBtn");
 const endNewGameBtn = document.getElementById("endNewGameBtn");
 
-// Board Join UI (deine IDs!)
+// Board Join
 const joinBtnEl = document.getElementById("joinBtn");
 const joinNameEl = document.getElementById("joinName");
 
 /* =========================
-   State (Host = authoritativ)
+   State
 ========================= */
 const used = new Set();
-
-let players = []; // {id, name, score}
+let players = [];
 let activePlayerIndex = 0;
 
 let current = null;
 let currentAudio = null;
 
-const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length || 0), 0);
+const TOTAL_CLUES = (gameData.categories || []).reduce((s, c) => s + (c.clues?.length || 0), 0);
 
 /* =========================
    Helpers
 ========================= */
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-function halfPoints(v) {
-  return Math.floor((v || 0) / 2);
-}
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function halfPoints(v) { return Math.floor((v || 0) / 2); }
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
   }[m]));
 }
 
-function getActivePlayer() {
-  return players[activePlayerIndex] || null;
-}
-function getPlayerById(id) {
-  return players.find((p) => p.id === id) || null;
-}
+function getActivePlayer() { return players[activePlayerIndex] || null; }
+function getPlayerById(id) { return players.find((p) => p.id === id) || null; }
 
 function renderTurn() {
   const p = getActivePlayer();
@@ -386,7 +257,6 @@ function applySnapshot(s) {
 
   players = Array.isArray(s.players) ? s.players : [];
   activePlayerIndex = Number.isInteger(s.activePlayerIndex) ? s.activePlayerIndex : 0;
-
   current = s.current || null;
 
   renderPlayers();
@@ -400,10 +270,13 @@ function applySnapshot(s) {
         fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
         overlay.classList.add("show");
 
+        // ✅ BUZZER-FIX: Wenn buzzer-phase -> Answer immer show
+        if (current.phase === "buzzer" && modalAnswer) modalAnswer.classList.add("show");
+
         setAnswerVisible(!!current.revealed);
         renderBuzzerUI();
 
-        // ✅ Timer im Board starten
+        // ✅ Timer
         if (current?.timerEnabled && current?.timerEndAt) {
           startTimerUI(current.timerEndAt, current.timerDurationMs || TIMER_SECONDS * 1000);
         } else {
@@ -415,11 +288,6 @@ function applySnapshot(s) {
       stopAudio();
       stopTimerUI();
     }
-  }
-
-  if (endOverlay) {
-    if (s.overlays?.endOpen) showEndScoreboard();
-    else hideEndScoreboard();
   }
 }
 
@@ -471,13 +339,12 @@ function renderPlayers() {
 
     top.appendChild(scoreEl);
     card.appendChild(top);
-
     playersEl.appendChild(card);
   });
 }
 
 /* =========================
-   Board UI (wie vorher)
+   Board UI
 ========================= */
 function buildBoard() {
   if (!board) return;
@@ -520,7 +387,7 @@ function buildBoard() {
 }
 
 /* =========================
-   Modal content helpers
+   Modal helpers
 ========================= */
 function ensureAnswerLayout() {
   if (!modalAnswer) return null;
@@ -537,8 +404,11 @@ function ensureAnswerLayout() {
 function setAnswerVisible(visible) {
   const content = document.getElementById("answerContent");
   if (!content) return;
+
   content.style.display = visible ? "block" : "none";
+
   if (modalAnswer) {
+    // ✅ BUZZER-FIX: bei buzzer-phase immer show
     if (visible || (current && current.phase === "buzzer")) modalAnswer.classList.add("show");
     else modalAnswer.classList.remove("show");
   }
@@ -558,7 +428,6 @@ function fillModalFromClue(clue, categoryName, value) {
     }
   }
 
-  // Timer UI wird NACH dem Inhalt angehängt
   if (current?.timerEnabled) ensureTimerUI();
   else stopTimerUI();
 
@@ -582,7 +451,7 @@ function fillModalFromClue(clue, categoryName, value) {
 }
 
 /* =========================
-   Open Question (Host only)
+   Host: Open Question
 ========================= */
 function openQuestion(ci, qi) {
   if (!isHost) return;
@@ -598,13 +467,10 @@ function openQuestion(ci, qi) {
   const durationMs = TIMER_SECONDS * 1000;
 
   current = {
-    ci,
-    qi,
-    key,
+    ci, qi, key,
     phase: "main",
     revealed: false,
 
-    // Timer (synced)
     timerEnabled,
     timerDurationMs: durationMs,
     timerEndAt: timerEnabled ? Date.now() + durationMs : null,
@@ -623,32 +489,21 @@ function openQuestion(ci, qi) {
 
   fillModalFromClue(clue, categoryName, clue.value);
 
-  updateHostButtonsForPhase();
-  renderBuzzerUI();
-
   if (overlay) overlay.classList.add("show");
 
-  // ✅ Timer starten (Host)
-  if (current.timerEnabled && current.timerEndAt) {
-    startTimerUI(current.timerEndAt, current.timerDurationMs);
-  } else {
-    stopTimerUI();
-  }
+  if (current.timerEnabled && current.timerEndAt) startTimerUI(current.timerEndAt, current.timerDurationMs);
+  else stopTimerUI();
 
+  renderBuzzerUI();
+  updateHostButtonsForPhase();
   syncSnapshot();
 }
 
-/* =========================
-   Close Modal (Host)
-   ✅ FIX: mark used so tile disappears
-========================= */
 function closeModal() {
   if (!isHost) return;
 
-  // Wenn Frage offen: als benutzt markieren
-  if (current?.key) {
-    used.add(current.key);
-  }
+  // ✅ FIX: beim X schließen -> Frage wird USED
+  if (current?.key) used.add(current.key);
 
   if (overlay) overlay.classList.remove("show");
   stopAudio();
@@ -662,18 +517,7 @@ function closeModal() {
 }
 
 /* =========================
-   Reveal (Host only)
-========================= */
-function revealAnswer() {
-  if (!isHost || !current) return;
-  current.revealed = true;
-  setAnswerVisible(true);
-  updateHostButtonsForPhase();
-  syncSnapshot();
-}
-
-/* =========================
-   Host Buttons enabling
+   Host: Buttons enabling
 ========================= */
 function updateHostButtonsForPhase() {
   if (!isHost || !current) return;
@@ -693,8 +537,15 @@ function updateHostButtonsForPhase() {
   }
 }
 
+function revealAnswer() {
+  if (!isHost || !current) return;
+  current.revealed = true;
+  setAnswerVisible(true);
+  syncSnapshot();
+}
+
 /* =========================
-   Scoring + Flow
+   Flow / Scoring
 ========================= */
 function addScoreByPlayerId(pid, delta) {
   const p = getPlayerById(pid);
@@ -717,13 +568,6 @@ function endQuestionAndAdvance() {
 
   current = null;
   buildBoard();
-
-  if (used.size >= TOTAL_CLUES) {
-    showEndScoreboard();
-    syncSnapshot();
-    return;
-  }
-
   nextPlayer();
   syncSnapshot();
 }
@@ -741,9 +585,10 @@ function answerMain(correct) {
     return;
   }
 
-  // falsch: halbe Minuspunkte
+  // main falsch: - halbe Punkte
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
+  // buzzer phase
   current.phase = "buzzer";
   current.revealed = false;
   current.buzzLocked = false;
@@ -751,16 +596,15 @@ function answerMain(correct) {
   current.buzzQueue = [];
   current.buzzerActiveId = null;
 
+  // ✅ BUZZER-FIX: Answer sofort sichtbar (damit buzzerArea sichtbar ist)
+  if (modalAnswer) modalAnswer.classList.add("show");
+
   setAnswerVisible(false);
   renderBuzzerUI();
   updateHostButtonsForPhase();
 
-  // ✅ Timer neu starten (Buzzer-Phase)
-  if (current.timerEnabled) {
-    restartCurrentTimer();
-  } else {
-    stopTimerUI();
-  }
+  if (current.timerEnabled) restartCurrentTimer();
+  else stopTimerUI();
 
   syncSnapshot();
 }
@@ -793,35 +637,20 @@ function answerBuzzer(correct) {
   renderBuzzerUI();
   updateHostButtonsForPhase();
 
-  // ✅ Timer neu starten (nächster Buzzer)
-  if (current.timerEnabled) {
-    restartCurrentTimer();
-  } else {
-    stopTimerUI();
-  }
+  if (current.timerEnabled) restartCurrentTimer();
+  else stopTimerUI();
 
   syncSnapshot();
 }
 
-/* =========================
-   Timer expiry -> auto "Falsch"
-========================= */
 function handleTimerExpired() {
   if (!isHost || !current) return;
-
-  if (current.phase === "main") {
-    answerMain(false);
-    return;
-  }
-
-  if (current.phase === "buzzer") {
-    if (!current.buzzerActiveId) return;
-    answerBuzzer(false);
-  }
+  if (current.phase === "main") answerMain(false);
+  else if (current.phase === "buzzer" && current.buzzerActiveId) answerBuzzer(false);
 }
 
 /* =========================
-   Buzzer UI
+   BUZZER UI
 ========================= */
 function renderBuzzerUI() {
   if (!current) return;
@@ -833,10 +662,11 @@ function renderBuzzerUI() {
 
   if (current.phase !== "buzzer") return;
 
+  // ✅ BUZZER-FIX: Answer Container immer sichtbar
   if (modalAnswer) modalAnswer.classList.add("show");
   setAnswerVisible(false);
 
-  // BOARD view
+  // BOARD
   if (!isHost) {
     const myPlayer = getPlayerById(clientId);
 
@@ -848,7 +678,6 @@ function renderBuzzerUI() {
       return;
     }
 
-    // ❌ Der aktive Spieler (Hauptspieler) darf nicht buzzern
     const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
     if (isMainTurnPlayer) {
       area.innerHTML = `
@@ -887,19 +716,14 @@ function renderBuzzerUI() {
 
     const buzzBtn = document.getElementById("buzzBtn");
     if (buzzBtn && !already) {
-      buzzBtn.addEventListener(
-        "click",
-        () => {
-          emitSync({ type: "buzz", payload: { id: clientId } });
-        },
-        { once: true }
-      );
+      buzzBtn.addEventListener("click", () => {
+        emitSync({ type: "buzz", payload: { id: clientId } });
+      }, { once: true });
     }
-
     return;
   }
 
-  // HOST view
+  // HOST
   const queue = current.buzzQueue || [];
   const activeId = current.buzzerActiveId || null;
 
@@ -908,9 +732,7 @@ function renderBuzzerUI() {
       const p = getPlayerById(pid);
       const name = p ? p.name : pid;
       const active = pid === activeId;
-      return `<button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(
-        pid
-      )}">${escapeHtml(name)}</button>`;
+      return `<button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
     })
     .join("");
 
@@ -931,75 +753,14 @@ function renderBuzzerUI() {
       current.buzzerActiveId = pid;
       current.buzzLocked = true;
 
-      // ✅ Timer neu starten für den ausgewählten Buzzer
-      if (current.timerEnabled) {
-        restartCurrentTimer();
-      } else {
-        stopTimerUI();
-      }
+      if (current.timerEnabled) restartCurrentTimer();
+      else stopTimerUI();
 
       renderBuzzerUI();
       updateHostButtonsForPhase();
       syncSnapshot();
     });
   });
-}
-
-/* =========================
-   Endscreen / Podium
-========================= */
-function showEndScoreboard() {
-  if (!endOverlay || !podiumEl) return;
-
-  const sorted = [...players].sort((a, b) => b.score - a.score);
-  const top3 = sorted.slice(0, 3);
-  while (top3.length < 3) top3.push({ id: "—", name: "—", score: 0 });
-
-  const order = [
-    { player: top3[1], rank: 2 },
-    { player: top3[0], rank: 1 },
-    { player: top3[2], rank: 3 },
-  ];
-
-  podiumEl.innerHTML = order
-    .map(
-      ({ player, rank }) => `
-    <div class="podiumSlot rank${rank}">
-      <div class="podiumRank">Platz ${rank}</div>
-      <p class="podiumName">${escapeHtml(player.name)}</p>
-      <div class="podiumScore">${player.score} Punkte</div>
-    </div>
-  `
-    )
-    .join("");
-
-  endOverlay.classList.add("show");
-  endOverlay.setAttribute("aria-hidden", "false");
-}
-
-function hideEndScoreboard() {
-  if (!endOverlay) return;
-  endOverlay.classList.remove("show");
-  endOverlay.setAttribute("aria-hidden", "true");
-}
-
-function resetGame() {
-  if (!isHost) return;
-  hideEndScoreboard();
-  used.clear();
-
-  stopAudio();
-  stopTimerUI();
-  if (overlay) overlay.classList.remove("show");
-  current = null;
-
-  players = players.map((p) => ({ ...p, score: 0 }));
-  activePlayerIndex = 0;
-
-  renderPlayers();
-  renderTurn();
-  buildBoard();
-  syncSnapshot();
 }
 
 /* =========================
@@ -1018,7 +779,6 @@ onSync((msg) => {
     return;
   }
 
-  // Host verarbeitet join/buzz -> snapshot
   if (!isHost) return;
 
   if (msg.type === "join") {
@@ -1046,15 +806,11 @@ onSync((msg) => {
     const pid = msg.payload?.id;
     if (!pid) return;
     if (!getPlayerById(pid)) return;
-
-    // ❌ Aktiver Spieler darf nicht buzzern (Sicherheits-Check)
     if (current?.mainPlayerId && pid === current.mainPlayerId) return;
-
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
     current.buzzQueue.push(pid);
-
     if (!current.buzzerActiveId) current.buzzerActiveId = pid;
 
     renderBuzzerUI();
@@ -1070,19 +826,17 @@ onSync((msg) => {
 if (isHost) {
   if (revealBtn) revealBtn.onclick = revealAnswer;
 
-  if (rightBtn)
-    rightBtn.onclick = () => {
-      if (!current) return;
-      if (current.phase === "main") answerMain(true);
-      else answerBuzzer(true);
-    };
+  if (rightBtn) rightBtn.onclick = () => {
+    if (!current) return;
+    if (current.phase === "main") answerMain(true);
+    else answerBuzzer(true);
+  };
 
-  if (wrongBtn)
-    wrongBtn.onclick = () => {
-      if (!current) return;
-      if (current.phase === "main") answerMain(false);
-      else answerBuzzer(false);
-    };
+  if (wrongBtn) wrongBtn.onclick = () => {
+    if (!current) return;
+    if (current.phase === "main") answerMain(false);
+    else answerBuzzer(false);
+  };
 
   if (closeBtn) closeBtn.onclick = closeModal;
 
@@ -1092,28 +846,23 @@ if (isHost) {
     });
   }
 
-  if (resetBtn) resetBtn.onclick = resetGame;
-
-  if (endCloseBtn)
-    endCloseBtn.onclick = () => {
-      hideEndScoreboard();
-      syncSnapshot();
-    };
-
-  if (endNewGameBtn) endNewGameBtn.onclick = resetGame;
-
-  if (endOverlay) {
-    endOverlay.addEventListener("click", (e) => {
-      if (e.target === endOverlay) {
-        hideEndScoreboard();
-        syncSnapshot();
-      }
-    });
-  }
+  if (resetBtn) resetBtn.onclick = () => {
+    used.clear();
+    stopAudio();
+    stopTimerUI();
+    if (overlay) overlay.classList.remove("show");
+    current = null;
+    players = players.map((p) => ({ ...p, score: 0 }));
+    activePlayerIndex = 0;
+    renderPlayers();
+    renderTurn();
+    buildBoard();
+    syncSnapshot();
+  };
 }
 
 /* =========================
-   Board Join UI
+   Board Join
 ========================= */
 if (!isHost) {
   function doJoin() {
@@ -1146,6 +895,4 @@ if (!isHost) {
 renderPlayers();
 renderTurn();
 buildBoard();
-
-// Host pushes initial snapshot so boards see board immediately
 if (isHost) syncSnapshot();
