@@ -436,3 +436,10 @@ body[data-role="board"] .tile{ cursor: default !important; }
   font-weight: 900;
   color: rgba(234,242,255,.92);
 }
+
+/* ✅ Soundtracks Play Button */
+.audioPlayBtn{
+  margin-top: 10px;
+  width: 100%;
+  font-weight: 900;
+}
