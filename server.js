@@ -1,47 +1,43 @@
-// server.js
 import express from "express";
 import http from "http";
-import path from "path";
 import { WebSocketServer } from "ws";
+import path from "path";
 import { fileURLToPath } from "url";
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-
-// ✅ CSP: erlaubt deine lokalen Dateien + WebSocket + Bilder + Audio
+// ---------- CSP FIX ----------
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self'",                 // kein inline script nötig
-      "style-src 'self' 'unsafe-inline'",  // CSS ok (unsafe-inline nur für style)
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self' data:",
-      "media-src 'self'",                  // mp3
-      "connect-src 'self' ws: wss:",       // WebSocket
+      "media-src 'self'",
+      "connect-src 'self' ws: wss:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'self'",
     ].join("; ")
   );
   next();
 });
 
-// ✅ Static files (host.html/board.html/style.css/script.js usw.)
-// Wenn du alles im Root liegen hast: __dirname
+// ---------- Static Files ----------
 app.use(express.static(__dirname));
 
-// Fallback: Root -> host.html (optional)
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "host.html"));
-});
+// Optional: favicon (damit der Browser nicht meckert)
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 
-const server = http.createServer(app);
-
-// WebSocket
-const wss = new WebSocketServer({ server });
-
-// ✅ letzer Snapshot wird gespeichert
+// ---------- WS state ----------
 let lastSnapshot = null;
 
 wss.on("connection", (socket) => {
@@ -53,36 +49,22 @@ wss.on("connection", (socket) => {
       return;
     }
 
-    // snapshot speichern
+    // Host sendet Snapshot -> Server speichert
     if (msg.type === "snapshot") {
-      lastSnapshot = msg;
+      lastSnapshot = msg.payload || null;
     }
 
-    // request_state beantworten
-    if (msg.type === "request_state" && lastSnapshot) {
-      try {
-        socket.send(JSON.stringify(lastSnapshot));
-      } catch {}
-      return;
-    }
-
-    // an alle broadcasten
-    const payload = JSON.stringify(msg);
+    // Broadcast an alle
+    const out = JSON.stringify(msg);
     wss.clients.forEach((client) => {
-      if (client.readyState === 1) {
-        try {
-          client.send(payload);
-        } catch {}
-      }
+      if (client.readyState === 1) client.send(out);
     });
-  });
 
-  // Bei Connect: snapshot schicken, falls vorhanden
-  if (lastSnapshot) {
-    try {
-      socket.send(JSON.stringify(lastSnapshot));
-    } catch {}
-  }
+    // Board fragt state -> antworte direkt mit Snapshot
+    if (msg.type === "request_state" && lastSnapshot) {
+      socket.send(JSON.stringify({ type: "snapshot", payload: lastSnapshot }));
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
