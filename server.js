@@ -11,7 +11,7 @@ const wss = new WebSocketServer({ server });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---------- CSP FIX ----------
+/** ✅ CSP FIX (nicht mehr default-src 'none') */
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
@@ -31,13 +31,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// ---------- Static Files ----------
+/** ✅ Static Files (host.html, board.html, script.js, style.css, logo.png, etc.) */
 app.use(express.static(__dirname));
 
-// Optional: favicon (damit der Browser nicht meckert)
+/** ✅ Root-URL: zeige Host als Startseite */
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "host.html"));
+});
+
+/** Optional: kein Favicon -> 204 statt Fehlversuch */
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 
-// ---------- WS state ----------
+/** ✅ WS Snapshot */
 let lastSnapshot = null;
 
 wss.on("connection", (socket) => {
@@ -49,18 +54,15 @@ wss.on("connection", (socket) => {
       return;
     }
 
-    // Host sendet Snapshot -> Server speichert
-    if (msg.type === "snapshot") {
-      lastSnapshot = msg.payload || null;
-    }
+    if (msg.type === "snapshot") lastSnapshot = msg.payload || null;
 
-    // Broadcast an alle
+    // Broadcast
     const out = JSON.stringify(msg);
     wss.clients.forEach((client) => {
       if (client.readyState === 1) client.send(out);
     });
 
-    // Board fragt state -> antworte direkt mit Snapshot
+    // State request
     if (msg.type === "request_state" && lastSnapshot) {
       socket.send(JSON.stringify({ type: "snapshot", payload: lastSnapshot }));
     }
