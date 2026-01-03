@@ -33,10 +33,9 @@ app.use((req, res, next) => {
 /** Static files: host.html, board.html, style.css, script.js, logo.png, audio/, Bilder/, morph/ ... */
 app.use(express.static(__dirname));
 
-/** Root = Host */
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "host.html"));
-});
+app.get("/host.html", (req, res) => res.sendFile(path.join(__dirname, "host.html")));
+app.get("/board.html", (req, res) => res.sendFile(path.join(__dirname, "board.html")));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "host.html")));
 
 /** kein Favicon = 204 */
 app.get("/favicon.ico", (req, res) => res.status(204).end());
