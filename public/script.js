@@ -27,7 +27,11 @@ function connectWS() {
 
   ws.addEventListener("message", (e) => {
     let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
     syncHandlers.forEach((fn) => fn(msg));
   });
 
@@ -41,7 +45,9 @@ function emitSync(obj) {
   if (wsReady && ws && ws.readyState === WebSocket.OPEN) ws.send(raw);
   else wsQueue.push(raw);
 }
-function onSync(cb) { syncHandlers.push(cb); }
+function onSync(cb) {
+  syncHandlers.push(cb);
+}
 
 connectWS();
 
@@ -55,12 +61,16 @@ const CLIENT_ID_KEY = "jeopardy_client_id_tab_v3";
 function getClientId() {
   if (tabParam) return `tab_${tabParam}`;
   let id = "";
-  try { id = sessionStorage.getItem(CLIENT_ID_KEY) || ""; } catch {}
+  try {
+    id = sessionStorage.getItem(CLIENT_ID_KEY) || "";
+  } catch {}
   if (!id) {
     id =
       globalThis.crypto?.randomUUID?.() ||
       `c_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-    try { sessionStorage.setItem(CLIENT_ID_KEY, id); } catch {}
+    try {
+      sessionStorage.setItem(CLIENT_ID_KEY, id);
+    } catch {}
   }
   return id;
 }
@@ -70,7 +80,7 @@ const clientId = getClientId();
    TIMERS
 ========================= */
 const QUESTION_TIMER_MS = 30000; // 30s pro Versuch (Main + ausgewählter Buzzer)
-const BUZZ_WINDOW_MS = 5000;     // 5s Buzz-Window
+const BUZZ_WINDOW_MS = 5000; // 5s Buzz-Window
 
 const TICK_MS = 100;
 let tickInterval = null;
@@ -88,11 +98,23 @@ let gameData = {
     {
       name: "Gemink",
       clues: [
-        { value: 100, q: "Wie heißt das Taschenmonster-Spiel, das 1999 in Deutschland erschien?", a: "Pokémon" },
+        {
+          value: 100,
+          q: "Wie heißt das Taschenmonster-Spiel, das 1999 in Deutschland erschien?",
+          a: "Pokémon",
+        },
         { value: 200, q: "Wie hieß das erste Battlefield?", a: "Battlefield 1942" },
-        { value: 300, q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?", a: "World of Warcraft" },
+        {
+          value: 300,
+          q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?",
+          a: "World of Warcraft",
+        },
         { value: 400, q: "Welches Tag ist semantisch für die Hauptüberschrift gedacht?", a: "<h1>" },
-        { value: 500, q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?", a: "Geralt von Riva" },
+        {
+          value: 500,
+          q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?",
+          a: "Geralt von Riva",
+        },
       ],
     },
     {
@@ -110,9 +132,21 @@ let gameData = {
       clues: [
         { value: 100, q: "Wie oft wurde Deutschland Fußball-Weltmeister?", a: "4-mal" },
         { value: 200, q: "Wie heißt der erste Pickup-Truck vin Tesla?", a: "Cybertruck" },
-        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?", a: "Stockholm-Syndrom" },
-        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
-        { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
+        {
+          value: 300,
+          q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?",
+          a: "Stockholm-Syndrom",
+        },
+        {
+          value: 400,
+          q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte",
+          a: "Heureka",
+        },
+        {
+          value: 500,
+          q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?",
+          a: "Salat / roter Römersalat",
+        },
       ],
     },
     {
@@ -161,8 +195,16 @@ let gameData = {
         { value: 100, q: "Mathe: Wie viel Grad hat ein gestreckter Winkel?", a: "180°" },
         { value: 200, q: "Chemie: Welche Abkürzung hat Eisen im Periodensystem?", a: "Fe" },
         { value: 300, q: "Deutsch: Wie nennt man die Grundform eines Verbs?", a: "Infinitiv" },
-        { value: 400, q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?", a: "Die Blätter (und die darin enthaltenen Chloroplasten)" },
-        { value: 500, q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?", a: "Future Perfect" },
+        {
+          value: 400,
+          q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?",
+          a: "Die Blätter (und die darin enthaltenen Chloroplasten)",
+        },
+        {
+          value: 500,
+          q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?",
+          a: "Future Perfect",
+        },
       ],
     },
   ],
@@ -213,15 +255,27 @@ const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length ||
 /* =========================
    Helpers
 ========================= */
-function halfPoints(v) { return Math.floor((v || 0) / 2); }
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function halfPoints(v) {
+  return Math.floor((v || 0) / 2);
+}
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
   }[m]));
 }
-function getActivePlayer() { return players[activePlayerIndex] || null; }
-function getPlayerById(id) { return players.find((p) => p.id === id) || null; }
+function getActivePlayer() {
+  return players[activePlayerIndex] || null;
+}
+function getPlayerById(id) {
+  return players.find((p) => p.id === id) || null;
+}
 
 function isSoundtracksCategory(ci) {
   const name = (gameData.categories?.[ci]?.name || "").toLowerCase();
@@ -279,25 +333,25 @@ function applySnapshot(s) {
   renderTurn();
   buildBoard();
 
-if (overlay) {
-  if (s.overlays?.questionOpen && current) {
-    const clue = gameData.categories[current.ci]?.clues?.[current.qi];
-    if (clue) {
-      fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
-      overlay.classList.add("show");
-      setAnswerVisible(!!current.revealed);
-      renderBuzzerUI();
-      renderTimerUI();
+  if (overlay) {
+    if (s.overlays?.questionOpen && current) {
+      const clue = gameData.categories[current.ci]?.clues?.[current.qi];
+      if (clue) {
+        fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
+        overlay.classList.add("show");
+        setAnswerVisible(!!current.revealed);
+        renderBuzzerUI();
+        renderTimerUI();
 
-      // ✅ WICHTIG: Board-Timer/Countdown wieder starten, nachdem er beim Schließen gestoppt wurde
-      startTickLoop();
+        // ✅ WICHTIG: Board-Timer/Countdown wieder starten
+        startTickLoop();
+      }
+    } else {
+      overlay.classList.remove("show");
+      stopAudio();
+      stopTick();
     }
-  } else {
-    overlay.classList.remove("show");
-    stopAudio();
-    stopTick();
   }
-}
 
   if (endOverlay) {
     if (s.overlays?.endOpen) showEndScoreboard();
@@ -411,7 +465,6 @@ function ensureTimerElement() {
   el.id = "timerArea";
   el.className = "timerArea";
 
-  // Timer sitzt IMMER unter der Frage (sichtbar)
   modalQuestion.parentElement?.appendChild(el);
   return el;
 }
@@ -487,15 +540,16 @@ function fillModalFromClue(clue, categoryName, value) {
 function renderTimerUI() {
   const el = document.getElementById("timerArea");
   if (!el) return;
-  if (!current) { el.textContent = ""; return; }
+  if (!current) {
+    el.textContent = "";
+    return;
+  }
 
-  // Soundtracks: kein 30s Timer
   if (isSoundtracksCategory(current.ci)) {
     el.textContent = "";
     return;
   }
 
-  // Nur anzeigen wenn timerUntil gesetzt & Antwort nicht revealed
   if (!current.timerUntil || current.revealed) {
     el.textContent = "";
     return;
@@ -531,12 +585,10 @@ function startTickLoop() {
     renderBuzzCountdownUI();
 
     if (isHost) {
-      // 30s Timeout
       if (current.timerUntil && Date.now() >= current.timerUntil && !current.revealed) {
         handleAttemptTimeout();
       }
 
-      // 5s Buzz Window Timeout
       if (
         current.phase === "buzzer" &&
         current.buzzWindowUntil &&
@@ -544,7 +596,7 @@ function startTickLoop() {
         !current.buzzWindowExpired &&
         !current.buzzLocked
       ) {
-        buzzWindowExpiredShowAnswer();
+        buzzWindowExpiredLockOnly();
       }
     }
   }, TICK_MS);
@@ -563,7 +615,13 @@ function renderBuzzCountdownUI() {
   const el = document.getElementById("buzzCountdown");
   if (!el) return;
 
-  if (!current || current.phase !== "buzzer" || current.buzzLocked || current.buzzWindowExpired || !current.buzzWindowUntil) {
+  if (
+    !current ||
+    current.phase !== "buzzer" ||
+    current.buzzLocked ||
+    current.buzzWindowExpired ||
+    !current.buzzWindowUntil
+  ) {
     el.textContent = "";
     return;
   }
@@ -587,7 +645,8 @@ function startBuzzWindow() {
   syncSnapshot();
 }
 
-function buzzWindowExpiredShowAnswer() {
+/* ✅ NEU: Wenn Buzz-Zeit abläuft -> NUR sperren, KEINE Antwort automatisch zeigen */
+function buzzWindowExpiredLockOnly() {
   if (!isHost || !current) return;
 
   current.buzzWindowExpired = true;
@@ -597,8 +656,9 @@ function buzzWindowExpiredShowAnswer() {
 
   stopAttemptTimer();
 
-  current.revealed = true;
-  setAnswerVisible(true);
+  // Antwort bleibt versteckt, bis Host "Antwort zeigen" klickt
+  current.revealed = false;
+  setAnswerVisible(false);
 
   renderBuzzerUI();
   renderTimerUI();
@@ -618,7 +678,9 @@ function openQuestion(ci, qi) {
   const mainPlayerId = getActivePlayer()?.id || null;
 
   current = {
-    ci, qi, key,
+    ci,
+    qi,
+    key,
     phase: "main",
     revealed: false,
 
@@ -657,7 +719,6 @@ function closeModal() {
   stopAudio();
   stopTick();
 
-  // Schließen = Frage ist erledigt -> Tile used
   if (current && current.key) used.add(current.key);
 
   if (overlay) overlay.classList.remove("show");
@@ -665,14 +726,12 @@ function closeModal() {
 
   buildBoard();
 
-  // Spielende?
   if (used.size >= TOTAL_CLUES) {
     showEndScoreboard();
     syncSnapshot();
     return;
   }
 
-  // Nächster Spieler
   nextPlayer();
   syncSnapshot();
 }
@@ -721,6 +780,7 @@ function answerMain(correct, fromTimeout = false) {
   if (correct) {
     if (mainId) addScoreByPlayerId(mainId, v);
 
+    // ✅ bei richtig: Antwort zeigen
     current.revealed = true;
     setAnswerVisible(true);
     syncSnapshot();
@@ -730,7 +790,6 @@ function answerMain(correct, fromTimeout = false) {
     return;
   }
 
-  // falsch/timeout: halbe Minuspunkte
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
   current.phase = "buzzer";
@@ -761,6 +820,7 @@ function answerBuzzer(correct, fromTimeout = false) {
   if (correct) {
     addScoreByPlayerId(pid, halfPoints(v));
 
+    // ✅ bei richtig: Antwort zeigen
     current.revealed = true;
     setAnswerVisible(true);
     syncSnapshot();
@@ -772,19 +832,18 @@ function answerBuzzer(correct, fromTimeout = false) {
 
   addScoreByPlayerId(pid, -halfPoints(v));
 
-  // entferne aus queue
   current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
   current.buzzerActiveId = null;
   current.buzzLocked = false;
 
-  // Wenn noch jemand im Queue: neues Buzz-Window starten
+  // Wenn noch jemand in der Queue: neues Buzz-Window starten
   if (current.buzzQueue.length > 0) {
     startBuzzWindow();
     return;
   }
 
-  // Niemand mehr: Antwort zeigen, warten bis Host schließt
-  buzzWindowExpiredShowAnswer();
+  // Niemand mehr: Buzz sperren, Host entscheidet ob Antwort zeigen
+  buzzWindowExpiredLockOnly();
 }
 
 /* =========================
@@ -806,7 +865,7 @@ function renderBuzzerUI() {
   if (current.buzzWindowExpired) {
     area.innerHTML = `
       <div class="buzzerHint">⏱️ Buzz-Zeit vorbei</div>
-      <div class="buzzerLocked">Antwort wird angezeigt.</div>
+      <div class="buzzerLocked">Buzzern ist gesperrt. Host kann jetzt „Antwort zeigen“.</div>
     `;
     return;
   }
@@ -823,7 +882,6 @@ function renderBuzzerUI() {
       return;
     }
 
-    // aktiver Spieler darf nicht buzzern
     const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
     if (isMainTurnPlayer) {
       area.innerHTML = `
@@ -833,7 +891,6 @@ function renderBuzzerUI() {
       return;
     }
 
-    // gesperrt wenn Host gewählt hat
     if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">🔒 Gesperrt</div>
@@ -844,7 +901,6 @@ function renderBuzzerUI() {
       return;
     }
 
-    // ich bin gewählt
     if (current.buzzLocked && current.buzzerActiveId && clientId === current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">✅ DU bist dran!</div>
@@ -865,9 +921,13 @@ function renderBuzzerUI() {
 
     const buzzBtn = document.getElementById("buzzBtn");
     if (buzzBtn && !already) {
-      buzzBtn.addEventListener("click", () => {
-        emitSync({ type: "buzz", payload: { id: clientId } });
-      }, { once: true });
+      buzzBtn.addEventListener(
+        "click",
+        () => {
+          emitSync({ type: "buzz", payload: { id: clientId } });
+        },
+        { once: true }
+      );
     }
 
     renderBuzzCountdownUI();
@@ -876,11 +936,13 @@ function renderBuzzerUI() {
 
   // HOST
   const queue = current.buzzQueue || [];
-  const items = queue.map((pid) => {
-    const p = getPlayerById(pid);
-    const name = p ? p.name : pid;
-    return `<button class="buzzerPick" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
-  }).join("");
+  const items = queue
+    .map((pid) => {
+      const p = getPlayerById(pid);
+      const name = p ? p.name : pid;
+      return `<button class="buzzerPick" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
+    })
+    .join("");
 
   area.innerHTML = `
     <div class="buzzerHint">Buzz-Reihenfolge (klicken zum Auswählen)</div>
@@ -897,7 +959,6 @@ function renderBuzzerUI() {
       current.buzzLocked = true;
       current.buzzWindowUntil = null;
 
-      // 30s Timer für diesen Versuch starten (außer Soundtracks)
       startAttemptTimer();
 
       renderTimerUI();
@@ -925,13 +986,17 @@ function showEndScoreboard() {
     { player: top3[2], rank: 3 },
   ];
 
-  podiumEl.innerHTML = order.map(({ player, rank }) => `
+  podiumEl.innerHTML = order
+    .map(
+      ({ player, rank }) => `
     <div class="podiumSlot rank${rank}">
       <div class="podiumRank">Platz ${rank}</div>
       <p class="podiumName">${escapeHtml(player.name)}</p>
       <div class="podiumScore">${player.score} Punkte</div>
     </div>
-  `).join("");
+  `
+    )
+    .join("");
 
   endOverlay.classList.add("show");
   endOverlay.setAttribute("aria-hidden", "false");
@@ -1008,9 +1073,7 @@ onSync((msg) => {
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
-    // aktiver Spieler darf nicht buzzern
     if (current.mainPlayerId && pid === current.mainPlayerId) return;
-
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
@@ -1027,17 +1090,19 @@ onSync((msg) => {
 if (isHost) {
   if (revealBtn) revealBtn.onclick = revealAnswer;
 
-  if (rightBtn) rightBtn.onclick = () => {
-    if (!current) return;
-    if (current.phase === "main") answerMain(true);
-    else answerBuzzer(true);
-  };
+  if (rightBtn)
+    rightBtn.onclick = () => {
+      if (!current) return;
+      if (current.phase === "main") answerMain(true);
+      else answerBuzzer(true);
+    };
 
-  if (wrongBtn) wrongBtn.onclick = () => {
-    if (!current) return;
-    if (current.phase === "main") answerMain(false);
-    else answerBuzzer(false);
-  };
+  if (wrongBtn)
+    wrongBtn.onclick = () => {
+      if (!current) return;
+      if (current.phase === "main") answerMain(false);
+      else answerBuzzer(false);
+    };
 
   if (closeBtn) closeBtn.onclick = closeModal;
 
@@ -1049,12 +1114,19 @@ if (isHost) {
 
   if (resetBtn) resetBtn.onclick = resetGame;
 
-  if (endCloseBtn) endCloseBtn.onclick = () => { hideEndScoreboard(); syncSnapshot(); };
+  if (endCloseBtn)
+    endCloseBtn.onclick = () => {
+      hideEndScoreboard();
+      syncSnapshot();
+    };
   if (endNewGameBtn) endNewGameBtn.onclick = resetGame;
 
   if (endOverlay) {
     endOverlay.addEventListener("click", (e) => {
-      if (e.target === endOverlay) { hideEndScoreboard(); syncSnapshot(); }
+      if (e.target === endOverlay) {
+        hideEndScoreboard();
+        syncSnapshot();
+      }
     });
   }
 }
@@ -1075,7 +1147,9 @@ if (!isHost) {
 
   if (joinBtnEl) joinBtnEl.addEventListener("click", doJoin);
   if (joinNameEl) {
-    joinNameEl.addEventListener("keydown", (e) => { if (e.key === "Enter") doJoin(); });
+    joinNameEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doJoin();
+    });
     joinNameEl.addEventListener("input", () => {
       if (joinBtnEl) joinBtnEl.disabled = false;
       if (joinNameEl) joinNameEl.disabled = false;
