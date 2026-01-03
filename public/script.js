@@ -234,7 +234,6 @@ let activePlayerIndex = 0;
 let current = null; // current question state
 
 let currentAudio = null;
-
 let tickInterval = null;
 
 const TOTAL_CLUES = gameData.categories.reduce(
@@ -342,7 +341,6 @@ function applySnapshot(s) {
         renderTimerUI();
         updateHostButtons();
 
-        // ✅ wichtig: Board tick wieder starten
         startTickLoop();
       }
     } else {
@@ -528,7 +526,6 @@ function fillModalFromClue(clue, categoryName, value) {
 
   setAnswerVisible(false);
 
-  // Play button (host/board local)
   const playBtn = document.getElementById("playTrackBtn");
   if (playBtn && clue.audio) {
     playBtn.onclick = () => playAudio(clue.audio);
@@ -542,14 +539,22 @@ function startAttemptTimer() {
   if (!isHost || !current) return;
   if (isSoundtracksCategory(current.ci)) {
     current.timerUntil = null;
+    current.timerFrozen = false;
+    current.timerExpired = false;
     return;
   }
   current.timerUntil = Date.now() + QUESTION_TIMER_MS;
+  current.timerFrozen = false;
+  current.timerExpired = false;
 }
 
-function stopAttemptTimer() {
+function stopAttemptTimer(opts = {}) {
+  // opts.keepFrozen: wenn true -> Timer NICHT wegmachen, wenn er schon "eingefroren" ist
   if (!current) return;
+  if (opts.keepFrozen && current.timerFrozen) return;
   current.timerUntil = null;
+  current.timerFrozen = false;
+  current.timerExpired = false;
 }
 
 function renderTimerUI() {
@@ -566,13 +571,26 @@ function renderTimerUI() {
     return;
   }
 
-  if (!current.timerUntil || current.revealed) {
+  // Wenn Antwort gezeigt wird: Timer ausblenden (wie bisher)
+  if (current.revealed) {
     el.textContent = "";
     return;
   }
 
-  const left = Math.max(0, current.timerUntil - Date.now());
-  el.textContent = `⏱️ ${(left / 1000).toFixed(1).replace(".", ",")}s`;
+  // Wenn Timer existiert: anzeigen (auch wenn abgelaufen -> 0,0 bleibt stehen)
+  if (current.timerUntil) {
+    const left = Math.max(0, current.timerUntil - Date.now());
+    el.textContent = `⏱️ ${(left / 1000).toFixed(1).replace(".", ",")}s`;
+    return;
+  }
+
+  // Wenn abgelaufen & eingefroren: auch anzeigen
+  if (current.timerExpired || current.timerFrozen) {
+    el.textContent = `⏱️ 0,0s`;
+    return;
+  }
+
+  el.textContent = "";
 }
 
 /* =========================
@@ -587,12 +605,10 @@ function startTickLoop() {
     renderBuzzCountdownUI();
 
     if (isHost) {
-      // 30s Versuch abgelaufen -> zählt als falsch (Main oder Buzzer)
       if (current.timerUntil && Date.now() >= current.timerUntil && !current.revealed) {
         handleAttemptTimeout();
       }
 
-      // Buzz-Window abgelaufen -> nur sperren (keine Antwort auto)
       if (
         current.phase === "buzzer" &&
         current.buzzWindowUntil &&
@@ -614,6 +630,11 @@ function stopTick() {
 function handleAttemptTimeout() {
   if (!isHost || !current) return;
 
+  // ✅ Timer bei 0 einfrieren (nicht entfernen)
+  current.timerUntil = Date.now();
+  current.timerFrozen = true;
+  current.timerExpired = true;
+
   if (current.phase === "main") {
     answerMain(false, true);
   } else if (current.phase === "buzzer") {
@@ -627,12 +648,12 @@ function handleAttemptTimeout() {
 function startBuzzWindow() {
   if (!isHost || !current) return;
 
-  current.buzzLocked = false;       // Buzz erlaubt
+  current.buzzLocked = false;
   current.buzzWindowExpired = false;
   current.buzzWindowUntil = Date.now() + BUZZ_WINDOW_MS;
 
-  // Wichtig: in Buzz-Phase läuft kein 30s Timer, solange niemand ausgewählt ist
-  stopAttemptTimer();
+  // ✅ Timer NICHT löschen, falls er gerade bei 0 eingefroren ist
+  stopAttemptTimer({ keepFrozen: true });
 
   renderBuzzerUI();
   renderTimerUI();
@@ -646,13 +667,12 @@ function expireBuzzWindowLockOnly() {
   current.buzzWindowExpired = true;
   current.buzzWindowUntil = null;
 
-  // Buzz sperren
   current.buzzLocked = true;
   current.buzzerActiveId = null;
 
-  stopAttemptTimer();
+  // ✅ Timer NICHT löschen, falls er gerade bei 0 eingefroren ist
+  stopAttemptTimer({ keepFrozen: true });
 
-  // Antwort bleibt verborgen
   current.revealed = false;
   setAnswerVisible(false);
 
@@ -675,7 +695,6 @@ function updateHostButtons() {
     return;
   }
 
-  // Reveal immer möglich (aber du willst’s nur wenn nötig; trotzdem ok)
   if (revealBtn) revealBtn.disabled = false;
 
   if (current.phase === "main") {
@@ -684,7 +703,6 @@ function updateHostButtons() {
     return;
   }
 
-  // buzzer phase
   const hasActive = !!current.buzzerActiveId;
   if (rightBtn) rightBtn.disabled = !hasActive;
   if (wrongBtn) wrongBtn.disabled = !hasActive;
@@ -742,30 +760,27 @@ function openQuestion(ci, qi) {
     phase: "main",
     revealed: false,
 
-    // main player darf nicht buzzern
     mainPlayerId,
 
-    // buzzer state
     buzzLocked: false,
-    buzzed: {},          // {playerId:true}
-    buzzQueue: [],       // Reihenfolge
+    buzzed: {},
+    buzzQueue: [],
     buzzerActiveId: null,
 
-    // buzz window
     buzzWindowUntil: null,
     buzzWindowExpired: false,
 
-    // attempt timer (30s)
     timerUntil: null,
+    timerFrozen: false,
+    timerExpired: false,
 
     ...clue,
   };
 
-  stopAudio(); // kein auto-play bei open
+  stopAudio();
 
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
 
-  // 30s nur wenn nicht Soundtracks
   startAttemptTimer();
 
   renderTimerUI();
@@ -781,16 +796,16 @@ function closeModal() {
   if (!isHost) return;
   if (!current) return;
 
-  // ✅ beim X schließen: Frage gilt als benutzt und wird vom Board genommen
   used.add(current.key);
-
   endQuestionAndAdvance();
 }
 
 function revealAnswer() {
   if (!isHost || !current) return;
 
+  // beim Reveal Timer komplett aus (und nicht mehr als 0 stehen lassen)
   stopAttemptTimer();
+
   current.revealed = true;
 
   setAnswerVisible(true);
@@ -807,26 +822,22 @@ function answerMain(correct, fromTimeout = false) {
   const v = current.value || 0;
   const mainId = current.mainPlayerId;
 
-  stopAttemptTimer();
+  if (!fromTimeout) stopAttemptTimer({ keepFrozen: true });
 
   if (correct) {
     if (mainId) addScoreByPlayerId(mainId, v);
 
-    // Antwort zeigen (host + boards)
     current.revealed = true;
     setAnswerVisible(true);
     syncSnapshot();
 
-    // Frage als benutzt & weiter
     used.add(current.key);
     setTimeout(() => endQuestionAndAdvance(), 800);
     return;
   }
 
-  // falsch: - halbe Punkte
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
-  // Buzzer-Phase starten
   current.phase = "buzzer";
   current.revealed = false;
 
@@ -840,7 +851,6 @@ function answerMain(correct, fromTimeout = false) {
 
   setAnswerVisible(false);
 
-  // Buzz Window (5s)
   startBuzzWindow();
 }
 
@@ -851,12 +861,11 @@ function answerBuzzer(correct, fromTimeout = false) {
   const pid = current.buzzerActiveId;
   if (!pid) return;
 
-  stopAttemptTimer();
+  if (!fromTimeout) stopAttemptTimer({ keepFrozen: true });
 
   if (correct) {
     addScoreByPlayerId(pid, halfPoints(v));
 
-    // Antwort zeigen (host + boards)
     current.revealed = true;
     setAnswerVisible(true);
     syncSnapshot();
@@ -866,22 +875,19 @@ function answerBuzzer(correct, fromTimeout = false) {
     return;
   }
 
-  // falsch: - halbe Punkte
   addScoreByPlayerId(pid, -halfPoints(v));
 
-  // aktuellen aus Queue entfernen
   current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
 
-  // nächsten aus Queue automatisch auswählen
   const nextId = current.buzzQueue[0] || null;
 
   if (nextId) {
     current.buzzerActiveId = nextId;
-    current.buzzLocked = true;       // gesperrt für andere, nur ausgewählter darf
-    current.buzzWindowUntil = null;  // window beendet
-    current.buzzWindowExpired = true; // kein erneutes Buzz-Window
+    current.buzzLocked = true;
+    current.buzzWindowUntil = null;
+    current.buzzWindowExpired = true;
 
-    // neuer 30s Versuch für den nächsten (außer Soundtracks)
+    // ✅ neuer 30s Timer für den nächsten Versuch
     startAttemptTimer();
 
     renderBuzzerUI();
@@ -891,7 +897,6 @@ function answerBuzzer(correct, fromTimeout = false) {
     return;
   }
 
-  // niemand mehr: Buzz endgültig sperren, Host kann nur noch "Antwort zeigen" oder X
   current.buzzerActiveId = null;
   current.buzzLocked = true;
   current.buzzWindowUntil = null;
@@ -923,6 +928,28 @@ function renderBuzzCountdownUI() {
 
   const left = Math.max(0, current.buzzWindowUntil - Date.now());
   el.textContent = `Buzz-Zeit: ${(left / 1000).toFixed(1).replace(".", ",")}s`;
+}
+
+function buzzQueueHtml(showActive = true) {
+  const queue = current?.buzzQueue || [];
+  const activeId = current?.buzzerActiveId || null;
+
+  if (!queue.length) return `<span class="buzzerEmpty">Noch niemand gebuzzert…</span>`;
+
+  return queue
+    .map((pid, idx) => {
+      const p = getPlayerById(pid);
+      const name = p ? p.name : pid;
+      const active = showActive && pid === activeId;
+      return `
+        <div class="buzzRow ${active ? "active" : ""}">
+          <span class="buzzPos">${idx + 1}.</span>
+          <span class="buzzName">${escapeHtml(name)}</span>
+          ${active ? `<span class="buzzTag">Aktiv</span>` : ``}
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function renderBuzzerUI() {
@@ -983,12 +1010,12 @@ function renderBuzzerUI() {
         const pid = btn.getAttribute("data-pid");
         if (!pid) return;
 
-        // Auswählen -> sperren, 30s starten
         current.buzzerActiveId = pid;
         current.buzzLocked = true;
         current.buzzWindowUntil = null;
-        current.buzzWindowExpired = true; // kein neues Window mehr
+        current.buzzWindowExpired = true;
 
+        // ✅ neuer 30s Timer für ausgewählten Buzzer
         startAttemptTimer();
 
         renderBuzzerUI();
@@ -1005,59 +1032,66 @@ function renderBuzzerUI() {
   // ===== BOARD VIEW =====
   const myPlayer = getPlayerById(clientId);
 
+  // ✅ Spieler sollen IMMER die Reihenfolge sehen
+  const orderBox = `
+    <div class="buzzerHint">Buzz-Reihenfolge</div>
+    <div class="buzzerCountdown" id="buzzCountdown"></div>
+    <div class="buzzOrder">${buzzQueueHtml(true)}</div>
+  `;
+
   if (!myPlayer) {
     area.innerHTML = `
-      <div class="buzzerHint">🔔 BUZZERN!</div>
-      <div class="buzzerEmpty">Du musst erst beitreten.</div>
+      ${orderBox}
+      <div class="buzzerLocked" style="margin-top:10px;">Du musst erst beitreten.</div>
     `;
+    renderBuzzCountdownUI();
     return;
   }
 
-  // aktiver main-player darf NICHT buzzern
   const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
   if (isMainTurnPlayer) {
     area.innerHTML = `
-      <div class="buzzerHint">🚫 Du bist dran</div>
-      <div class="buzzerLocked">Der aktive Spieler darf nicht buzzern.</div>
+      ${orderBox}
+      <div class="buzzerLocked" style="margin-top:10px;">Der aktive Spieler darf nicht buzzern.</div>
     `;
+    renderBuzzCountdownUI();
     return;
   }
 
-  // wenn gesperrt und jemand aktiv
   if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
     area.innerHTML = `
-      <div class="buzzerHint">🔒 Gesperrt</div>
-      <div class="buzzerLocked">
+      ${orderBox}
+      <div class="buzzerLocked" style="margin-top:10px;">
         ${escapeHtml(getPlayerById(current.buzzerActiveId)?.name || "Ein Spieler")} ist dran.
       </div>
     `;
+    renderBuzzCountdownUI();
     return;
   }
 
-  // wenn ich aktiv
   if (current.buzzLocked && current.buzzerActiveId && clientId === current.buzzerActiveId) {
     area.innerHTML = `
-      <div class="buzzerHint">✅ DU bist dran!</div>
-      <div class="buzzerLocked">Warte auf Host (Richtig/Falsch)…</div>
+      ${orderBox}
+      <div class="buzzerLocked" style="margin-top:10px;">✅ DU bist dran! Warte auf Host…</div>
     `;
+    renderBuzzCountdownUI();
     return;
   }
 
-  // wenn buzz-window vorbei
   if (current.buzzWindowExpired || !current.buzzWindowUntil) {
     area.innerHTML = `
-      <div class="buzzerHint">⏱️ Buzz-Zeit vorbei</div>
-      <div class="buzzerLocked">Buzzern ist gesperrt.</div>
+      ${orderBox}
+      <div class="buzzerLocked" style="margin-top:10px;">Buzzern ist gesperrt.</div>
     `;
+    renderBuzzCountdownUI();
     return;
   }
 
   const already = !!current.buzzed?.[clientId];
 
   area.innerHTML = `
-    <div class="buzzerHint">🔔 BUZZERN! (pro Frage nur 1×)</div>
-    <div class="buzzerCountdown" id="buzzCountdown"></div>
-    <button class="btn buzzerBtn" id="buzzBtn" ${already ? "disabled" : ""}>
+    ${orderBox}
+    <button class="btn buzzerBtn" id="buzzBtn" ${already ? "disabled" : ""} style="margin-top:10px;">
       ${already ? "Schon gebuzzert" : "BUZZ!"}
     </button>
   `;
@@ -1151,7 +1185,6 @@ onSync((msg) => {
     return;
   }
 
-  // Host verarbeitet join/buzz
   if (!isHost) return;
 
   if (msg.type === "join") {
@@ -1175,7 +1208,6 @@ onSync((msg) => {
   if (msg.type === "buzz") {
     if (!current || current.phase !== "buzzer") return;
 
-    // nur während Buzz-Window & nicht gesperrt
     if (current.buzzLocked) return;
     if (current.buzzWindowExpired) return;
     if (!current.buzzWindowUntil) return;
@@ -1185,10 +1217,7 @@ onSync((msg) => {
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
-    // main player darf nicht buzzern
     if (current.mainPlayerId && pid === current.mainPlayerId) return;
-
-    // pro frage nur 1x
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
