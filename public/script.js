@@ -1,5 +1,9 @@
 /*************************************************
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
+ * - Host baut/steuert, Boards schauen & buzzern
+ * - Timer: 30s pro Versuch (außer Soundtracks)
+ * - Buzz Window: 5s zum Buzzern (visuell)
+ * - Antwort wird NUR durch Host "Antwort zeigen" eingeblendet
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -8,7 +12,8 @@ const isHost = ROLE === "host";
 /* =========================
    WebSocket
 ========================= */
-const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+const WS_URL =
+  (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
 
 let ws = null;
 let wsReady = false;
@@ -40,11 +45,13 @@ function connectWS() {
     setTimeout(connectWS, 900);
   });
 }
+
 function emitSync(obj) {
   const raw = JSON.stringify(obj);
   if (wsReady && ws && ws.readyState === WebSocket.OPEN) ws.send(raw);
   else wsQueue.push(raw);
 }
+
 function onSync(cb) {
   syncHandlers.push(cb);
 }
@@ -52,12 +59,12 @@ function onSync(cb) {
 connectWS();
 
 /* =========================
-   Client ID
+   Client ID (Boards)
 ========================= */
 const urlParams = new URLSearchParams(location.search);
 const tabParam = urlParams.get("p");
 
-const CLIENT_ID_KEY = "jeopardy_client_id_tab_v3";
+const CLIENT_ID_KEY = "jeopardy_client_id_tab_v4";
 function getClientId() {
   if (tabParam) return `tab_${tabParam}`;
   let id = "";
@@ -77,21 +84,14 @@ function getClientId() {
 const clientId = getClientId();
 
 /* =========================
-   TIMERS
+   Timings
 ========================= */
 const QUESTION_TIMER_MS = 30000; // 30s pro Versuch (Main + ausgewählter Buzzer)
-const BUZZ_WINDOW_MS = 5000; // 5s Buzz-Window
-
+const BUZZ_WINDOW_MS = 5000; // 5s Buzz-Fenster
 const TICK_MS = 100;
-let tickInterval = null;
-
-function stopTick() {
-  if (tickInterval) clearInterval(tickInterval);
-  tickInterval = null;
-}
 
 /* =========================
-   GAME DATA (deins)
+   GAME DATA (bleibt im Script)
 ========================= */
 let gameData = {
   categories: [
@@ -137,16 +137,8 @@ let gameData = {
           q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?",
           a: "Stockholm-Syndrom",
         },
-        {
-          value: 400,
-          q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte",
-          a: "Heureka",
-        },
-        {
-          value: 500,
-          q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?",
-          a: "Salat / roter Römersalat",
-        },
+        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
+        { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
       ],
     },
     {
@@ -195,16 +187,8 @@ let gameData = {
         { value: 100, q: "Mathe: Wie viel Grad hat ein gestreckter Winkel?", a: "180°" },
         { value: 200, q: "Chemie: Welche Abkürzung hat Eisen im Periodensystem?", a: "Fe" },
         { value: 300, q: "Deutsch: Wie nennt man die Grundform eines Verbs?", a: "Infinitiv" },
-        {
-          value: 400,
-          q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?",
-          a: "Die Blätter (und die darin enthaltenen Chloroplasten)",
-        },
-        {
-          value: 500,
-          q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?",
-          a: "Future Perfect",
-        },
+        { value: 400, q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?", a: "Die Blätter (und die darin enthaltenen Chloroplasten)" },
+        { value: 500, q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?", a: "Future Perfect" },
       ],
     },
   ],
@@ -236,7 +220,7 @@ const podiumEl = document.getElementById("podium");
 const endCloseBtn = document.getElementById("endCloseBtn");
 const endNewGameBtn = document.getElementById("endNewGameBtn");
 
-// Join
+// Join (Board)
 const joinBtnEl = document.getElementById("joinBtn");
 const joinNameEl = document.getElementById("joinName");
 
@@ -246,20 +230,26 @@ const joinNameEl = document.getElementById("joinName");
 const used = new Set();
 let players = []; // {id, name, score}
 let activePlayerIndex = 0;
-let current = null;
+
+let current = null; // current question state
 
 let currentAudio = null;
 
-const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length || 0), 0);
+let tickInterval = null;
+
+const TOTAL_CLUES = gameData.categories.reduce(
+  (s, c) => s + (c.clues?.length || 0),
+  0
+);
 
 /* =========================
    Helpers
 ========================= */
-function halfPoints(v) {
-  return Math.floor((v || 0) / 2);
-}
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
+}
+function halfPoints(v) {
+  return Math.floor((v || 0) / 2);
 }
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
@@ -276,12 +266,20 @@ function getActivePlayer() {
 function getPlayerById(id) {
   return players.find((p) => p.id === id) || null;
 }
-
 function isSoundtracksCategory(ci) {
   const name = (gameData.categories?.[ci]?.name || "").toLowerCase();
   return name.includes("soundtrack");
 }
 
+function renderTurn() {
+  if (!turnPill) return;
+  const p = getActivePlayer();
+  turnPill.textContent = p ? `${p.name} ist dran!` : "Warte auf Spieler…";
+}
+
+/* =========================
+   Audio (Host local)
+========================= */
 function stopAudio() {
   if (!currentAudio) return;
   currentAudio.pause();
@@ -292,12 +290,6 @@ function playAudio(src) {
   stopAudio();
   currentAudio = new Audio(src);
   currentAudio.play().catch(() => {});
-}
-
-function renderTurn() {
-  const p = getActivePlayer();
-  if (!turnPill) return;
-  turnPill.textContent = p ? `${p.name} ist dran!` : "Warte auf Spieler…";
 }
 
 /* =========================
@@ -315,10 +307,12 @@ function getSnapshot() {
     },
   };
 }
+
 function syncSnapshot() {
   if (!isHost) return;
   emitSync({ type: "snapshot", payload: getSnapshot() });
 }
+
 function applySnapshot(s) {
   if (!s) return;
 
@@ -326,7 +320,10 @@ function applySnapshot(s) {
   (s.used || []).forEach((k) => used.add(k));
 
   players = Array.isArray(s.players) ? s.players : [];
-  activePlayerIndex = Number.isInteger(s.activePlayerIndex) ? s.activePlayerIndex : 0;
+  activePlayerIndex = Number.isInteger(s.activePlayerIndex)
+    ? s.activePlayerIndex
+    : 0;
+
   current = s.current || null;
 
   renderPlayers();
@@ -339,11 +336,13 @@ function applySnapshot(s) {
       if (clue) {
         fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
         overlay.classList.add("show");
+
         setAnswerVisible(!!current.revealed);
         renderBuzzerUI();
         renderTimerUI();
+        updateHostButtons();
 
-        // ✅ WICHTIG: Board-Timer/Countdown wieder starten
+        // ✅ wichtig: Board tick wieder starten
         startTickLoop();
       }
     } else {
@@ -448,13 +447,14 @@ function buildBoard() {
         if (isHost) tile.onclick = () => openQuestion(ci, i);
         else tile.style.cursor = "default";
       }
+
       board.appendChild(tile);
     });
   }
 }
 
 /* =========================
-   Modal helpers
+   Modal layout helpers
 ========================= */
 function ensureTimerElement() {
   if (!modalQuestion) return null;
@@ -464,7 +464,6 @@ function ensureTimerElement() {
   el = document.createElement("div");
   el.id = "timerArea";
   el.className = "timerArea";
-
   modalQuestion.parentElement?.appendChild(el);
   return el;
 }
@@ -485,10 +484,10 @@ function setAnswerVisible(visible) {
   const content = document.getElementById("answerContent");
   if (!content) return;
   content.style.display = visible ? "block" : "none";
-  if (modalAnswer) {
-    if (visible || (current && current.phase === "buzzer")) modalAnswer.classList.add("show");
-    else modalAnswer.classList.remove("show");
-  }
+
+  if (!modalAnswer) return;
+  if (visible || (current && current.phase === "buzzer")) modalAnswer.classList.add("show");
+  else modalAnswer.classList.remove("show");
 }
 
 function fillModalFromClue(clue, categoryName, value) {
@@ -501,7 +500,9 @@ function fillModalFromClue(clue, categoryName, value) {
     } else if (clue.audio) {
       modalQuestion.innerHTML = `
         <div class="questionText">🎵 Soundtrack</div>
-        ${isHost ? `<button class="btn" id="playTrackBtn" style="margin-top:10px;">▶ Abspielen</button>` : ``}
+        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn" id="playTrackBtn">▶ Abspielen</button>
+        </div>
       `;
     } else {
       modalQuestion.textContent = clue.q ?? "";
@@ -509,7 +510,6 @@ function fillModalFromClue(clue, categoryName, value) {
   }
 
   ensureTimerElement();
-
   const layout = ensureAnswerLayout();
   if (!layout) return;
 
@@ -528,18 +528,34 @@ function fillModalFromClue(clue, categoryName, value) {
 
   setAnswerVisible(false);
 
+  // Play button (host/board local)
   const playBtn = document.getElementById("playTrackBtn");
-  if (playBtn && isHost && clue.audio) {
+  if (playBtn && clue.audio) {
     playBtn.onclick = () => playAudio(clue.audio);
   }
 }
 
 /* =========================
-   Timer render
+   Timer handling
 ========================= */
+function startAttemptTimer() {
+  if (!isHost || !current) return;
+  if (isSoundtracksCategory(current.ci)) {
+    current.timerUntil = null;
+    return;
+  }
+  current.timerUntil = Date.now() + QUESTION_TIMER_MS;
+}
+
+function stopAttemptTimer() {
+  if (!current) return;
+  current.timerUntil = null;
+}
+
 function renderTimerUI() {
   const el = document.getElementById("timerArea");
   if (!el) return;
+
   if (!current) {
     el.textContent = "";
     return;
@@ -555,26 +571,12 @@ function renderTimerUI() {
     return;
   }
 
-  const left = current.timerUntil - Date.now();
-  const sec = Math.max(0, left) / 1000;
-  el.textContent = `⏱️ ${sec.toFixed(1).replace(".", ",")}s`;
-}
-
-function stopAttemptTimer() {
-  if (!current) return;
-  current.timerUntil = null;
-}
-function startAttemptTimer() {
-  if (!isHost || !current) return;
-  if (isSoundtracksCategory(current.ci)) {
-    current.timerUntil = null;
-    return;
-  }
-  current.timerUntil = Date.now() + QUESTION_TIMER_MS;
+  const left = Math.max(0, current.timerUntil - Date.now());
+  el.textContent = `⏱️ ${(left / 1000).toFixed(1).replace(".", ",")}s`;
 }
 
 /* =========================
-   Tick loop (Host + Board)
+   Tick loop
 ========================= */
 function startTickLoop() {
   stopTick();
@@ -585,10 +587,12 @@ function startTickLoop() {
     renderBuzzCountdownUI();
 
     if (isHost) {
+      // 30s Versuch abgelaufen -> zählt als falsch (Main oder Buzzer)
       if (current.timerUntil && Date.now() >= current.timerUntil && !current.revealed) {
         handleAttemptTimeout();
       }
 
+      // Buzz-Window abgelaufen -> nur sperren (keine Antwort auto)
       if (
         current.phase === "buzzer" &&
         current.buzzWindowUntil &&
@@ -596,38 +600,25 @@ function startTickLoop() {
         !current.buzzWindowExpired &&
         !current.buzzLocked
       ) {
-        buzzWindowExpiredLockOnly();
+        expireBuzzWindowLockOnly();
       }
     }
   }, TICK_MS);
 }
 
-function handleAttemptTimeout() {
-  if (!isHost || !current) return;
-  if (current.phase === "main") answerMain(false, true);
-  else if (current.phase === "buzzer") answerBuzzer(false, true);
+function stopTick() {
+  if (tickInterval) clearInterval(tickInterval);
+  tickInterval = null;
 }
 
-/* =========================
-   Buzz countdown UI
-========================= */
-function renderBuzzCountdownUI() {
-  const el = document.getElementById("buzzCountdown");
-  if (!el) return;
+function handleAttemptTimeout() {
+  if (!isHost || !current) return;
 
-  if (
-    !current ||
-    current.phase !== "buzzer" ||
-    current.buzzLocked ||
-    current.buzzWindowExpired ||
-    !current.buzzWindowUntil
-  ) {
-    el.textContent = "";
-    return;
+  if (current.phase === "main") {
+    answerMain(false, true);
+  } else if (current.phase === "buzzer") {
+    answerBuzzer(false, true);
   }
-
-  const left = current.buzzWindowUntil - Date.now();
-  el.textContent = `Buzz-Zeit: ${Math.max(0, left / 1000).toFixed(1).replace(".", ",")}s`;
 }
 
 /* =========================
@@ -635,39 +626,106 @@ function renderBuzzCountdownUI() {
 ========================= */
 function startBuzzWindow() {
   if (!isHost || !current) return;
-  if (current.buzzWindowExpired) return;
 
-  current.buzzLocked = false;
-  current.buzzerActiveId = null;
+  current.buzzLocked = false;       // Buzz erlaubt
+  current.buzzWindowExpired = false;
   current.buzzWindowUntil = Date.now() + BUZZ_WINDOW_MS;
 
+  // Wichtig: in Buzz-Phase läuft kein 30s Timer, solange niemand ausgewählt ist
+  stopAttemptTimer();
+
   renderBuzzerUI();
+  renderTimerUI();
+  updateHostButtons();
   syncSnapshot();
 }
 
-/* ✅ NEU: Wenn Buzz-Zeit abläuft -> NUR sperren, KEINE Antwort automatisch zeigen */
-function buzzWindowExpiredLockOnly() {
+function expireBuzzWindowLockOnly() {
   if (!isHost || !current) return;
 
   current.buzzWindowExpired = true;
   current.buzzWindowUntil = null;
+
+  // Buzz sperren
   current.buzzLocked = true;
   current.buzzerActiveId = null;
 
   stopAttemptTimer();
 
-  // Antwort bleibt versteckt, bis Host "Antwort zeigen" klickt
+  // Antwort bleibt verborgen
   current.revealed = false;
   setAnswerVisible(false);
 
   renderBuzzerUI();
   renderTimerUI();
+  updateHostButtons();
   syncSnapshot();
 }
 
 /* =========================
-   Open/Close Question
+   Host button state
 ========================= */
+function updateHostButtons() {
+  if (!isHost) return;
+
+  if (!current) {
+    if (revealBtn) revealBtn.disabled = true;
+    if (rightBtn) rightBtn.disabled = true;
+    if (wrongBtn) wrongBtn.disabled = true;
+    return;
+  }
+
+  // Reveal immer möglich (aber du willst’s nur wenn nötig; trotzdem ok)
+  if (revealBtn) revealBtn.disabled = false;
+
+  if (current.phase === "main") {
+    if (rightBtn) rightBtn.disabled = false;
+    if (wrongBtn) wrongBtn.disabled = false;
+    return;
+  }
+
+  // buzzer phase
+  const hasActive = !!current.buzzerActiveId;
+  if (rightBtn) rightBtn.disabled = !hasActive;
+  if (wrongBtn) wrongBtn.disabled = !hasActive;
+}
+
+/* =========================
+   Flow / Scoring
+========================= */
+function addScoreByPlayerId(pid, delta) {
+  const p = getPlayerById(pid);
+  if (!p) return;
+  p.score += delta;
+  renderPlayers();
+}
+
+function nextPlayer() {
+  if (players.length === 0) return;
+  activePlayerIndex = (activePlayerIndex + 1) % players.length;
+  renderPlayers();
+  renderTurn();
+}
+
+function endQuestionAndAdvance() {
+  stopAudio();
+  stopTick();
+
+  if (overlay) overlay.classList.remove("show");
+
+  current = null;
+  buildBoard();
+
+  if (used.size >= TOTAL_CLUES) {
+    showEndScoreboard();
+    syncSnapshot();
+    return;
+  }
+
+  nextPlayer();
+  syncSnapshot();
+}
+
 function openQuestion(ci, qi) {
   if (!isHost) return;
 
@@ -684,61 +742,51 @@ function openQuestion(ci, qi) {
     phase: "main",
     revealed: false,
 
+    // main player darf nicht buzzern
     mainPlayerId,
 
+    // buzzer state
     buzzLocked: false,
-    buzzed: {},
-    buzzQueue: [],
+    buzzed: {},          // {playerId:true}
+    buzzQueue: [],       // Reihenfolge
     buzzerActiveId: null,
 
+    // buzz window
     buzzWindowUntil: null,
     buzzWindowExpired: false,
 
+    // attempt timer (30s)
     timerUntil: null,
 
     ...clue,
   };
 
-  stopAudio();
+  stopAudio(); // kein auto-play bei open
 
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
 
+  // 30s nur wenn nicht Soundtracks
   startAttemptTimer();
-  renderTimerUI();
 
+  renderTimerUI();
   renderBuzzerUI();
-  startTickLoop();
+  updateHostButtons();
 
   if (overlay) overlay.classList.add("show");
+  startTickLoop();
   syncSnapshot();
 }
 
 function closeModal() {
   if (!isHost) return;
+  if (!current) return;
 
-  stopAudio();
-  stopTick();
+  // ✅ beim X schließen: Frage gilt als benutzt und wird vom Board genommen
+  used.add(current.key);
 
-  if (current && current.key) used.add(current.key);
-
-  if (overlay) overlay.classList.remove("show");
-  current = null;
-
-  buildBoard();
-
-  if (used.size >= TOTAL_CLUES) {
-    showEndScoreboard();
-    syncSnapshot();
-    return;
-  }
-
-  nextPlayer();
-  syncSnapshot();
+  endQuestionAndAdvance();
 }
 
-/* =========================
-   Reveal
-========================= */
 function revealAnswer() {
   if (!isHost || !current) return;
 
@@ -748,25 +796,9 @@ function revealAnswer() {
   setAnswerVisible(true);
   renderTimerUI();
   renderBuzzerUI();
+  updateHostButtons();
 
   syncSnapshot();
-}
-
-/* =========================
-   Scoring & Flow
-========================= */
-function addScoreByPlayerId(pid, delta) {
-  const p = getPlayerById(pid);
-  if (!p) return;
-  p.score += delta;
-  renderPlayers();
-}
-
-function nextPlayer() {
-  if (players.length === 0) return;
-  activePlayerIndex = (activePlayerIndex + 1) % players.length;
-  renderPlayers();
-  renderTurn();
 }
 
 function answerMain(correct, fromTimeout = false) {
@@ -780,18 +812,21 @@ function answerMain(correct, fromTimeout = false) {
   if (correct) {
     if (mainId) addScoreByPlayerId(mainId, v);
 
-    // ✅ bei richtig: Antwort zeigen
+    // Antwort zeigen (host + boards)
     current.revealed = true;
     setAnswerVisible(true);
     syncSnapshot();
 
+    // Frage als benutzt & weiter
     used.add(current.key);
-    setTimeout(() => closeModal(), 900);
+    setTimeout(() => endQuestionAndAdvance(), 800);
     return;
   }
 
+  // falsch: - halbe Punkte
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
+  // Buzzer-Phase starten
   current.phase = "buzzer";
   current.revealed = false;
 
@@ -801,15 +836,16 @@ function answerMain(correct, fromTimeout = false) {
 
   current.buzzWindowExpired = false;
   current.buzzWindowUntil = null;
+  current.buzzLocked = false;
 
   setAnswerVisible(false);
 
+  // Buzz Window (5s)
   startBuzzWindow();
 }
 
 function answerBuzzer(correct, fromTimeout = false) {
   if (!isHost || !current) return;
-  if (current.buzzWindowExpired) return;
 
   const v = current.value || 0;
   const pid = current.buzzerActiveId;
@@ -820,35 +856,75 @@ function answerBuzzer(correct, fromTimeout = false) {
   if (correct) {
     addScoreByPlayerId(pid, halfPoints(v));
 
-    // ✅ bei richtig: Antwort zeigen
+    // Antwort zeigen (host + boards)
     current.revealed = true;
     setAnswerVisible(true);
     syncSnapshot();
 
     used.add(current.key);
-    setTimeout(() => closeModal(), 900);
+    setTimeout(() => endQuestionAndAdvance(), 800);
     return;
   }
 
+  // falsch: - halbe Punkte
   addScoreByPlayerId(pid, -halfPoints(v));
 
+  // aktuellen aus Queue entfernen
   current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
-  current.buzzerActiveId = null;
-  current.buzzLocked = false;
 
-  // Wenn noch jemand in der Queue: neues Buzz-Window starten
-  if (current.buzzQueue.length > 0) {
-    startBuzzWindow();
+  // nächsten aus Queue automatisch auswählen
+  const nextId = current.buzzQueue[0] || null;
+
+  if (nextId) {
+    current.buzzerActiveId = nextId;
+    current.buzzLocked = true;       // gesperrt für andere, nur ausgewählter darf
+    current.buzzWindowUntil = null;  // window beendet
+    current.buzzWindowExpired = true; // kein erneutes Buzz-Window
+
+    // neuer 30s Versuch für den nächsten (außer Soundtracks)
+    startAttemptTimer();
+
+    renderBuzzerUI();
+    renderTimerUI();
+    updateHostButtons();
+    syncSnapshot();
     return;
   }
 
-  // Niemand mehr: Buzz sperren, Host entscheidet ob Antwort zeigen
-  buzzWindowExpiredLockOnly();
+  // niemand mehr: Buzz endgültig sperren, Host kann nur noch "Antwort zeigen" oder X
+  current.buzzerActiveId = null;
+  current.buzzLocked = true;
+  current.buzzWindowUntil = null;
+  current.buzzWindowExpired = true;
+
+  renderBuzzerUI();
+  renderTimerUI();
+  updateHostButtons();
+  syncSnapshot();
 }
 
 /* =========================
    Buzzer UI
 ========================= */
+function renderBuzzCountdownUI() {
+  const el = document.getElementById("buzzCountdown");
+  if (!el) return;
+
+  if (
+    !current ||
+    current.phase !== "buzzer" ||
+    current.buzzLocked ||
+    current.buzzWindowExpired ||
+    !current.buzzWindowUntil
+  ) {
+    el.textContent = "";
+    return;
+  }
+
+  const left = Math.max(0, current.buzzWindowUntil - Date.now());
+  el.textContent = `Buzz-Zeit: ${(left / 1000).toFixed(1).replace(".", ",")}s`;
+}
+
 function renderBuzzerUI() {
   if (!current) return;
 
@@ -860,112 +936,142 @@ function renderBuzzerUI() {
   if (current.phase !== "buzzer") return;
 
   if (modalAnswer) modalAnswer.classList.add("show");
-  setAnswerVisible(!!current.revealed);
 
-  if (current.buzzWindowExpired) {
-    area.innerHTML = `
-      <div class="buzzerHint">⏱️ Buzz-Zeit vorbei</div>
-      <div class="buzzerLocked">Buzzern ist gesperrt. Host kann jetzt „Antwort zeigen“.</div>
-    `;
-    return;
-  }
+  // ===== HOST VIEW =====
+  if (isHost) {
+    const queue = current.buzzQueue || [];
+    const activeId = current.buzzerActiveId;
 
-  // BOARD
-  if (!isHost) {
-    const myPlayer = getPlayerById(clientId);
+    const listHtml = queue.length
+      ? queue
+          .map((pid, idx) => {
+            const p = getPlayerById(pid);
+            const name = p ? p.name : pid;
+            const active = pid === activeId;
+            return `
+              <button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(pid)}">
+                ${idx + 1}. ${escapeHtml(name)}
+              </button>
+            `;
+          })
+          .join("")
+      : `<span class="buzzerEmpty">Noch niemand gebuzzert…</span>`;
 
-    if (!myPlayer) {
-      area.innerHTML = `
-        <div class="buzzerHint">🔔 BUZZERN!</div>
-        <div class="buzzerEmpty">Du musst erst beitreten.</div>
-      `;
-      return;
-    }
-
-    const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
-    if (isMainTurnPlayer) {
-      area.innerHTML = `
-        <div class="buzzerHint">🚫 Du bist dran</div>
-        <div class="buzzerLocked">Der aktive Spieler darf nicht buzzern.</div>
-      `;
-      return;
-    }
-
-    if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
-      area.innerHTML = `
-        <div class="buzzerHint">🔒 Gesperrt</div>
-        <div class="buzzerLocked">
-          ${escapeHtml(getPlayerById(current.buzzerActiveId)?.name || "Ein Spieler")} ist dran.
-        </div>
-      `;
-      return;
-    }
-
-    if (current.buzzLocked && current.buzzerActiveId && clientId === current.buzzerActiveId) {
-      area.innerHTML = `
-        <div class="buzzerHint">✅ DU bist dran!</div>
-        <div class="buzzerLocked">Warte auf Host…</div>
-      `;
-      return;
-    }
-
-    const already = !!current.buzzed?.[clientId];
+    const statusLine = (() => {
+      if (current.buzzLocked && activeId) {
+        const name = getPlayerById(activeId)?.name || activeId;
+        return `Aktiv: <b>${escapeHtml(name)}</b> (30s laufen)`;
+      }
+      if (!current.buzzLocked && current.buzzWindowUntil && !current.buzzWindowExpired) {
+        return `Warte auf Buzz…`;
+      }
+      if (current.buzzWindowExpired && !activeId) {
+        return `Buzz-Zeit vorbei. Du kannst jetzt „Antwort zeigen“.`;
+      }
+      return `—`;
+    })();
 
     area.innerHTML = `
-      <div class="buzzerHint">🔔 BUZZERN! (pro Frage nur 1×)</div>
+      <div class="buzzerHint">Buzz-Reihenfolge (klicken zum Auswählen)</div>
       <div class="buzzerCountdown" id="buzzCountdown"></div>
-      <button class="btn buzzerBtn" id="buzzBtn" ${already ? "disabled" : ""}>
-        ${already ? "Schon gebuzzert" : "BUZZ!"}
-      </button>
+      <div class="buzzerList">${listHtml}</div>
+      <div class="buzzerCurrent">${statusLine}</div>
     `;
 
-    const buzzBtn = document.getElementById("buzzBtn");
-    if (buzzBtn && !already) {
-      buzzBtn.addEventListener(
-        "click",
-        () => {
-          emitSync({ type: "buzz", payload: { id: clientId } });
-        },
-        { once: true }
-      );
-    }
+    area.querySelectorAll(".buzzerPick").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const pid = btn.getAttribute("data-pid");
+        if (!pid) return;
+
+        // Auswählen -> sperren, 30s starten
+        current.buzzerActiveId = pid;
+        current.buzzLocked = true;
+        current.buzzWindowUntil = null;
+        current.buzzWindowExpired = true; // kein neues Window mehr
+
+        startAttemptTimer();
+
+        renderBuzzerUI();
+        renderTimerUI();
+        updateHostButtons();
+        syncSnapshot();
+      });
+    });
 
     renderBuzzCountdownUI();
     return;
   }
 
-  // HOST
-  const queue = current.buzzQueue || [];
-  const items = queue
-    .map((pid) => {
-      const p = getPlayerById(pid);
-      const name = p ? p.name : pid;
-      return `<button class="buzzerPick" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
-    })
-    .join("");
+  // ===== BOARD VIEW =====
+  const myPlayer = getPlayerById(clientId);
+
+  if (!myPlayer) {
+    area.innerHTML = `
+      <div class="buzzerHint">🔔 BUZZERN!</div>
+      <div class="buzzerEmpty">Du musst erst beitreten.</div>
+    `;
+    return;
+  }
+
+  // aktiver main-player darf NICHT buzzern
+  const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
+  if (isMainTurnPlayer) {
+    area.innerHTML = `
+      <div class="buzzerHint">🚫 Du bist dran</div>
+      <div class="buzzerLocked">Der aktive Spieler darf nicht buzzern.</div>
+    `;
+    return;
+  }
+
+  // wenn gesperrt und jemand aktiv
+  if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
+    area.innerHTML = `
+      <div class="buzzerHint">🔒 Gesperrt</div>
+      <div class="buzzerLocked">
+        ${escapeHtml(getPlayerById(current.buzzerActiveId)?.name || "Ein Spieler")} ist dran.
+      </div>
+    `;
+    return;
+  }
+
+  // wenn ich aktiv
+  if (current.buzzLocked && current.buzzerActiveId && clientId === current.buzzerActiveId) {
+    area.innerHTML = `
+      <div class="buzzerHint">✅ DU bist dran!</div>
+      <div class="buzzerLocked">Warte auf Host (Richtig/Falsch)…</div>
+    `;
+    return;
+  }
+
+  // wenn buzz-window vorbei
+  if (current.buzzWindowExpired || !current.buzzWindowUntil) {
+    area.innerHTML = `
+      <div class="buzzerHint">⏱️ Buzz-Zeit vorbei</div>
+      <div class="buzzerLocked">Buzzern ist gesperrt.</div>
+    `;
+    return;
+  }
+
+  const already = !!current.buzzed?.[clientId];
 
   area.innerHTML = `
-    <div class="buzzerHint">Buzz-Reihenfolge (klicken zum Auswählen)</div>
+    <div class="buzzerHint">🔔 BUZZERN! (pro Frage nur 1×)</div>
     <div class="buzzerCountdown" id="buzzCountdown"></div>
-    <div class="buzzerList">${items || `<span class="buzzerEmpty">Noch niemand gebuzzert…</span>`}</div>
+    <button class="btn buzzerBtn" id="buzzBtn" ${already ? "disabled" : ""}>
+      ${already ? "Schon gebuzzert" : "BUZZ!"}
+    </button>
   `;
 
-  area.querySelectorAll(".buzzerPick").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const pid = btn.getAttribute("data-pid");
-      if (!pid) return;
-
-      current.buzzerActiveId = pid;
-      current.buzzLocked = true;
-      current.buzzWindowUntil = null;
-
-      startAttemptTimer();
-
-      renderTimerUI();
-      renderBuzzerUI();
-      syncSnapshot();
-    });
-  });
+  const buzzBtn = document.getElementById("buzzBtn");
+  if (buzzBtn && !already) {
+    buzzBtn.addEventListener(
+      "click",
+      () => {
+        emitSync({ type: "buzz", payload: { id: clientId } });
+      },
+      { once: true }
+    );
+  }
 
   renderBuzzCountdownUI();
 }
@@ -989,23 +1095,25 @@ function showEndScoreboard() {
   podiumEl.innerHTML = order
     .map(
       ({ player, rank }) => `
-    <div class="podiumSlot rank${rank}">
-      <div class="podiumRank">Platz ${rank}</div>
-      <p class="podiumName">${escapeHtml(player.name)}</p>
-      <div class="podiumScore">${player.score} Punkte</div>
-    </div>
-  `
+      <div class="podiumSlot rank${rank}">
+        <div class="podiumRank">Platz ${rank}</div>
+        <p class="podiumName">${escapeHtml(player.name)}</p>
+        <div class="podiumScore">${player.score} Punkte</div>
+      </div>
+    `
     )
     .join("");
 
   endOverlay.classList.add("show");
   endOverlay.setAttribute("aria-hidden", "false");
 }
+
 function hideEndScoreboard() {
   if (!endOverlay) return;
   endOverlay.classList.remove("show");
   endOverlay.setAttribute("aria-hidden", "true");
 }
+
 function resetGame() {
   if (!isHost) return;
 
@@ -1028,7 +1136,7 @@ function resetGame() {
 }
 
 /* =========================
-   Sync listener
+   Sync Listener
 ========================= */
 onSync((msg) => {
   if (!msg || !msg.type) return;
@@ -1043,6 +1151,7 @@ onSync((msg) => {
     return;
   }
 
+  // Host verarbeitet join/buzz
   if (!isHost) return;
 
   if (msg.type === "join") {
@@ -1065,15 +1174,21 @@ onSync((msg) => {
 
   if (msg.type === "buzz") {
     if (!current || current.phase !== "buzzer") return;
-    if (current.buzzWindowExpired) return;
+
+    // nur während Buzz-Window & nicht gesperrt
     if (current.buzzLocked) return;
-    if (!current.buzzWindowUntil || Date.now() > current.buzzWindowUntil) return;
+    if (current.buzzWindowExpired) return;
+    if (!current.buzzWindowUntil) return;
+    if (Date.now() > current.buzzWindowUntil) return;
 
     const pid = msg.payload?.id;
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
+    // main player darf nicht buzzern
     if (current.mainPlayerId && pid === current.mainPlayerId) return;
+
+    // pro frage nur 1x
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
@@ -1081,11 +1196,12 @@ onSync((msg) => {
 
     renderBuzzerUI();
     syncSnapshot();
+    return;
   }
 });
 
 /* =========================
-   Buttons
+   Buttons (Host)
 ========================= */
 if (isHost) {
   if (revealBtn) revealBtn.onclick = revealAnswer;
@@ -1119,6 +1235,7 @@ if (isHost) {
       hideEndScoreboard();
       syncSnapshot();
     };
+
   if (endNewGameBtn) endNewGameBtn.onclick = resetGame;
 
   if (endOverlay) {
@@ -1132,7 +1249,7 @@ if (isHost) {
 }
 
 /* =========================
-   Join UI
+   Join UI (Board)
 ========================= */
 if (!isHost) {
   function doJoin() {
@@ -1146,10 +1263,12 @@ if (!isHost) {
   }
 
   if (joinBtnEl) joinBtnEl.addEventListener("click", doJoin);
+
   if (joinNameEl) {
     joinNameEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") doJoin();
     });
+
     joinNameEl.addEventListener("input", () => {
       if (joinBtnEl) joinBtnEl.disabled = false;
       if (joinNameEl) joinNameEl.disabled = false;
