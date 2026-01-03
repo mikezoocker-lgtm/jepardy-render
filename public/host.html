@@ -16,22 +16,19 @@
 
     <section class="playersPanel">
       <div class="panelTop">
+      <div class="playersHeader">
+        <div class="playersActions">
+          <button class="btn" id="removePlayerBtn">Spieler entfernen</button>
+        </div>
+      </div>
         <div class="panelControls">
           <div class="pill" id="turnPill">—</div>
           <button class="btn" id="resetBtn">Neues Spiel</button>
         </div>
       </div>
 
-      <div class="playersHeader">
-        <h2>Spieler (Host)</h2>
-        <div class="playersActions">
-          <!-- + Spieler ist ab jetzt unnötig -->
-          <button class="btn" id="removePlayerBtn">Spieler entfernen</button>
-        </div>
-      </div>
 
       <div class="players" id="players"></div>
-      <small class="hint">Tipp: Klicke auf einen Spieler, um ihn zu markieren (Entfernen löscht den markierten).</small>
     </section>
 
     <div class="board" id="board"></div>
