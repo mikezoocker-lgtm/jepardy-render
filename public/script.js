@@ -86,6 +86,11 @@ function getClientId() {
 const clientId = getClientId();
 
 /* =========================
+   SETTINGS
+========================= */
+const BUZZ_WINDOW_MS = 5000;
+
+/* =========================
    GAME DATA
 ========================= */
 let gameData = {
@@ -219,7 +224,7 @@ const podiumEl = document.getElementById("podium");
 const endCloseBtn = document.getElementById("endCloseBtn");
 const endNewGameBtn = document.getElementById("endNewGameBtn");
 
-// Board Join UI (deine IDs!)
+// Board Join UI
 const joinBtnEl = document.getElementById("joinBtn");
 const joinNameEl = document.getElementById("joinName");
 
@@ -324,9 +329,8 @@ function applySnapshot(s) {
       if (clue) {
         fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
         overlay.classList.add("show");
-
         setAnswerVisible(!!current.revealed);
-        renderBuzzerUI(); // ✅ wichtig (zeigt auch Antwort wenn revealed)
+        renderBuzzerUI(); // wichtig: Board zeigt Antwort auch im buzzer-phase
       }
     } else {
       overlay.classList.remove("show");
@@ -495,6 +499,56 @@ function fillModalFromClue(clue, categoryName, value) {
 }
 
 /* =========================
+   Buzz Window (Host only)
+   - 5s Zeit zum Buzzern, dann auto-pick oder beenden
+========================= */
+function startBuzzWindow() {
+  if (!isHost || !current) return;
+
+  // Buzz ist offen
+  current.buzzLocked = false;
+  current.buzzerActiveId = null;
+
+  // 5 Sekunden Zeit
+  current.buzzWindowUntil = Date.now() + BUZZ_WINDOW_MS;
+
+  if (current._buzzTimer) clearTimeout(current._buzzTimer);
+
+  current._buzzTimer = setTimeout(() => {
+    if (!current || current.phase !== "buzzer") return;
+
+    // Wenn Host inzwischen gewählt/gesperrt hat: nichts tun
+    if (current.buzzLocked || current.buzzerActiveId) return;
+
+    // Wenn niemand gebuzzert hat -> Frage beenden
+    if (!current.buzzQueue || current.buzzQueue.length === 0) {
+      used.add(current.key);
+      endQuestionAndAdvance();
+      return;
+    }
+
+    // Auto-pick: erster in Queue
+    current.buzzerActiveId = current.buzzQueue[0];
+    current.buzzLocked = true;
+
+    // Fenster schließen
+    current.buzzWindowUntil = null;
+    if (current._buzzTimer) {
+      clearTimeout(current._buzzTimer);
+      current._buzzTimer = null;
+    }
+
+    renderBuzzerUI();
+    updateHostButtonsForPhase();
+    syncSnapshot();
+  }, BUZZ_WINDOW_MS + 30);
+
+  renderBuzzerUI();
+  updateHostButtonsForPhase();
+  syncSnapshot();
+}
+
+/* =========================
    Open Question (Host only)
 ========================= */
 function openQuestion(ci, qi) {
@@ -518,6 +572,9 @@ function openQuestion(ci, qi) {
     buzzQueue: [],
     buzzerActiveId: null,
 
+    buzzWindowUntil: null,
+    _buzzTimer: null,
+
     mainPlayerId,
     ...clue,
   };
@@ -534,8 +591,19 @@ function openQuestion(ci, qi) {
   syncSnapshot();
 }
 
+/* =========================
+   Close Modal (Host only)
+   X = Frage beenden (Tile verschwindet)
+========================= */
 function closeModal() {
   if (!isHost) return;
+
+  if (current && current.key) {
+    used.add(current.key);
+    endQuestionAndAdvance(); // macht snapshot + next player
+    return;
+  }
+
   if (overlay) overlay.classList.remove("show");
   current = null;
   stopAudio();
@@ -550,7 +618,7 @@ function revealAnswer() {
   current.revealed = true;
   setAnswerVisible(true);
   updateHostButtonsForPhase();
-  renderBuzzerUI(); // ✅ wichtig: Board sieht Antwort auch in buzzer-phase
+  renderBuzzerUI(); // wichtig: Boards sehen die Antwort auch im buzzer-phase
   syncSnapshot();
 }
 
@@ -596,6 +664,11 @@ function endQuestionAndAdvance() {
   if (overlay) overlay.classList.remove("show");
   stopAudio();
 
+  // Buzz timer clean
+  if (current && current._buzzTimer) {
+    clearTimeout(current._buzzTimer);
+  }
+
   current = null;
   buildBoard();
 
@@ -615,39 +688,42 @@ function answerMain(correct) {
   const v = current.value || 0;
   const mainId = current.mainPlayerId;
 
-if (correct) {
-  if (mainId) addScoreByPlayerId(mainId, v);
+  if (correct) {
+    if (mainId) addScoreByPlayerId(mainId, v);
 
-  // ✅ Antwort sichtbar machen (Host + Board)
-  current.revealed = true;
-  setAnswerVisible(true);
-  renderBuzzerUI();     // falls jemand vorher gebuzzert hat / UI aktualisieren
-  updateHostButtonsForPhase();
-  syncSnapshot();
+    // Antwort kurz anzeigen (Host + Board)
+    current.revealed = true;
+    setAnswerVisible(true);
+    renderBuzzerUI();
+    updateHostButtonsForPhase();
+    syncSnapshot();
 
-  // ✅ Frage als benutzt markieren, aber erst NACH kurzem Anzeigen weiter
-  used.add(current.key);
+    used.add(current.key);
 
-  setTimeout(() => {
-    endQuestionAndAdvance();
-  }, 900);
+    setTimeout(() => {
+      endQuestionAndAdvance();
+    }, 900);
 
-  return;
-}
+    return;
+  }
 
+  // falsch: Hauptspieler verliert halbe Punkte
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
+  // Buzzer Phase starten
   current.phase = "buzzer";
   current.revealed = false;
-  current.buzzLocked = false;
+
   current.buzzed = {};
   current.buzzQueue = [];
   current.buzzerActiveId = null;
 
+  current.buzzWindowUntil = null;
+
   setAnswerVisible(false);
-  renderBuzzerUI();
-  updateHostButtonsForPhase();
-  syncSnapshot();
+
+  // 5s Buzz-Fenster öffnen
+  startBuzzWindow();
 }
 
 function answerBuzzer(correct) {
@@ -657,37 +733,39 @@ function answerBuzzer(correct) {
   const pid = current.buzzerActiveId;
   if (!pid) return;
 
-if (correct) {
-  addScoreByPlayerId(pid, halfPoints(v));
+  if (correct) {
+    addScoreByPlayerId(pid, halfPoints(v));
 
-  // ✅ Antwort sichtbar machen (Host + Board)
-  current.revealed = true;
-  setAnswerVisible(true);
-  renderBuzzerUI();
-  updateHostButtonsForPhase();
-  syncSnapshot();
+    // Antwort kurz anzeigen (Host + Board)
+    current.revealed = true;
+    setAnswerVisible(true);
+    renderBuzzerUI();
+    updateHostButtonsForPhase();
+    syncSnapshot();
 
-  used.add(current.key);
-
-  setTimeout(() => {
-    endQuestionAndAdvance();
-  }, 900);
-
-  return;
-}
-
-
-  addScoreByPlayerId(pid, -halfPoints(v));
-
-  current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
-  current.buzzerActiveId = current.buzzQueue[0] || null;
-
-  if (!current.buzzerActiveId) {
     used.add(current.key);
-    endQuestionAndAdvance();
+
+    setTimeout(() => {
+      endQuestionAndAdvance();
+    }, 900);
+
     return;
   }
 
+  // falsch: Buzzer-Spieler verliert halbe Punkte
+  addScoreByPlayerId(pid, -halfPoints(v));
+
+  // aus Queue entfernen
+  current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
+  current.buzzerActiveId = current.buzzQueue[0] || null;
+
+  // Wenn kein aktiver mehr da ist -> Buzz-Fenster erneut öffnen (Spieler 3 etc.)
+  if (!current.buzzerActiveId) {
+    startBuzzWindow();
+    return;
+  }
+
+  // Wenn noch einer da ist: Host muss auswählen (oder bleibt auto-active)
   renderBuzzerUI();
   updateHostButtonsForPhase();
   syncSnapshot();
@@ -709,7 +787,7 @@ function renderBuzzerUI() {
   // Modal sichtbar halten
   if (modalAnswer) modalAnswer.classList.add("show");
 
-  // ✅ WICHTIG: wenn Host "Antwort zeigen" drückt, muss Board die Antwort sehen
+  // Wenn Host "Antwort zeigen" drückt, muss Board die Antwort sehen
   if (current.revealed) setAnswerVisible(true);
   else setAnswerVisible(false);
 
@@ -727,7 +805,7 @@ function renderBuzzerUI() {
       return;
     }
 
-    // ❌ Der aktive Spieler (Hauptspieler) darf nicht buzzern
+    // Aktiver Spieler darf nicht buzzern
     const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
     if (isMainTurnPlayer) {
       area.innerHTML = `
@@ -737,6 +815,7 @@ function renderBuzzerUI() {
       return;
     }
 
+    // Host hat ausgewählt → alle anderen gesperrt
     if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">🔒 Gesperrt</div>
@@ -747,6 +826,7 @@ function renderBuzzerUI() {
       return;
     }
 
+    // Ich bin ausgewählt
     if (current.buzzLocked && current.buzzerActiveId && clientId === current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">✅ DU bist dran!</div>
@@ -812,6 +892,13 @@ function renderBuzzerUI() {
       current.buzzerActiveId = pid;
       current.buzzLocked = true;
 
+      // Buzz-Fenster stoppen
+      current.buzzWindowUntil = null;
+      if (current._buzzTimer) {
+        clearTimeout(current._buzzTimer);
+        current._buzzTimer = null;
+      }
+
       renderBuzzerUI();
       updateHostButtonsForPhase();
       syncSnapshot();
@@ -864,6 +951,8 @@ function resetGame() {
 
   stopAudio();
   if (overlay) overlay.classList.remove("show");
+
+  if (current && current._buzzTimer) clearTimeout(current._buzzTimer);
   current = null;
 
   players = players.map((p) => ({ ...p, score: 0 }));
@@ -916,18 +1005,23 @@ onSync((msg) => {
     if (!current || current.phase !== "buzzer") return;
     if (current.buzzLocked) return;
 
+    // nur während Buzz-Fenster erlauben
+    if (current.buzzWindowUntil && Date.now() > current.buzzWindowUntil) return;
+
     const pid = msg.payload?.id;
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
-    // ❌ Aktiver Spieler darf nicht buzzern (Sicherheits-Check)
+    // aktiver Spieler darf nicht buzzern
     if (current?.mainPlayerId && pid === current.mainPlayerId) return;
 
+    // pro Frage nur 1x buzzern
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
     current.buzzQueue.push(pid);
 
+    // (optional) auto-active wenn noch keiner aktiv ist
     if (!current.buzzerActiveId) current.buzzerActiveId = pid;
 
     renderBuzzerUI();
