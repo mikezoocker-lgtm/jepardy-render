@@ -89,6 +89,35 @@ const clientId = getClientId();
    SETTINGS
 ========================= */
 const BUZZ_WINDOW_MS = 5000;
+const BUZZ_TICK_MS = 100; // wie flüssig der Countdown läuft
+
+let buzzTickInterval = null;
+
+function formatMs(ms) {
+  const s = Math.max(0, ms) / 1000;
+  return s.toFixed(1).replace(".", ",");
+}
+
+function stopBuzzTicker() {
+  if (buzzTickInterval) clearInterval(buzzTickInterval);
+  buzzTickInterval = null;
+}
+
+function startBuzzTicker() {
+  stopBuzzTicker();
+  buzzTickInterval = setInterval(() => {
+    if (!current || current.phase !== "buzzer") return;
+    if (!current.buzzWindowUntil || current.buzzLocked) return;
+
+    const el = document.getElementById("buzzCountdown");
+    if (!el) return;
+
+    const left = current.buzzWindowUntil - Date.now();
+    el.textContent = `Buzz-Zeit: ${formatMs(left)}s`;
+
+    if (left <= 0) el.textContent = `Buzz-Zeit: 0,0s`;
+  }, BUZZ_TICK_MS);
+}
 
 /* =========================
    GAME DATA
@@ -330,11 +359,12 @@ function applySnapshot(s) {
         fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
         overlay.classList.add("show");
         setAnswerVisible(!!current.revealed);
-        renderBuzzerUI(); // wichtig: Board zeigt Antwort auch im buzzer-phase
+        renderBuzzerUI();
       }
     } else {
       overlay.classList.remove("show");
       stopAudio();
+      stopBuzzTicker();
     }
   }
 
@@ -500,7 +530,6 @@ function fillModalFromClue(clue, categoryName, value) {
 
 /* =========================
    Buzz Window (Host only)
-   - 5s Zeit zum Buzzern, dann auto-pick oder beenden
 ========================= */
 function startBuzzWindow() {
   if (!isHost || !current) return;
@@ -598,9 +627,11 @@ function openQuestion(ci, qi) {
 function closeModal() {
   if (!isHost) return;
 
+  stopBuzzTicker();
+
   if (current && current.key) {
     used.add(current.key);
-    endQuestionAndAdvance(); // macht snapshot + next player
+    endQuestionAndAdvance();
     return;
   }
 
@@ -618,7 +649,7 @@ function revealAnswer() {
   current.revealed = true;
   setAnswerVisible(true);
   updateHostButtonsForPhase();
-  renderBuzzerUI(); // wichtig: Boards sehen die Antwort auch im buzzer-phase
+  renderBuzzerUI();
   syncSnapshot();
 }
 
@@ -661,10 +692,11 @@ function nextPlayer() {
 }
 
 function endQuestionAndAdvance() {
+  stopBuzzTicker();
+
   if (overlay) overlay.classList.remove("show");
   stopAudio();
 
-  // Buzz timer clean
   if (current && current._buzzTimer) {
     clearTimeout(current._buzzTimer);
   }
@@ -765,7 +797,6 @@ function answerBuzzer(correct) {
     return;
   }
 
-  // Wenn noch einer da ist: Host muss auswählen (oder bleibt auto-active)
   renderBuzzerUI();
   updateHostButtonsForPhase();
   syncSnapshot();
@@ -782,12 +813,13 @@ function renderBuzzerUI() {
 
   area.innerHTML = "";
 
-  if (current.phase !== "buzzer") return;
+  if (current.phase !== "buzzer") {
+    stopBuzzTicker();
+    return;
+  }
 
-  // Modal sichtbar halten
   if (modalAnswer) modalAnswer.classList.add("show");
 
-  // Wenn Host "Antwort zeigen" drückt, muss Board die Antwort sehen
   if (current.revealed) setAnswerVisible(true);
   else setAnswerVisible(false);
 
@@ -802,6 +834,7 @@ function renderBuzzerUI() {
         <div class="buzzerHint">🔔 BUZZERN!</div>
         <div class="buzzerEmpty">Du musst erst beitreten.</div>
       `;
+      stopBuzzTicker();
       return;
     }
 
@@ -812,6 +845,7 @@ function renderBuzzerUI() {
         <div class="buzzerHint">🚫 Du bist dran</div>
         <div class="buzzerLocked">Der aktive Spieler darf nicht buzzern.</div>
       `;
+      stopBuzzTicker();
       return;
     }
 
@@ -823,6 +857,7 @@ function renderBuzzerUI() {
           ${escapeHtml(getPlayerById(current.buzzerActiveId)?.name || "Ein Spieler")} ist dran.
         </div>
       `;
+      stopBuzzTicker();
       return;
     }
 
@@ -832,6 +867,7 @@ function renderBuzzerUI() {
         <div class="buzzerHint">✅ DU bist dran!</div>
         <div class="buzzerLocked">Warte auf Host (Richtig/Falsch)…</div>
       `;
+      stopBuzzTicker();
       return;
     }
 
@@ -839,10 +875,13 @@ function renderBuzzerUI() {
 
     area.innerHTML = `
       <div class="buzzerHint">🔔 BUZZERN! (pro Frage nur 1×)</div>
+      <div class="buzzerCountdown" id="buzzCountdown"></div>
       <button class="btn buzzerBtn" id="buzzBtn" ${already ? "disabled" : ""}>
         ${already ? "Schon gebuzzert" : "BUZZ!"}
       </button>
     `;
+
+    startBuzzTicker();
 
     const buzzBtn = document.getElementById("buzzBtn");
     if (buzzBtn && !already) {
@@ -877,12 +916,15 @@ function renderBuzzerUI() {
 
   area.innerHTML = `
     <div class="buzzerHint">Buzz-Reihenfolge (klicken zum Auswählen)</div>
+    <div class="buzzerCountdown" id="buzzCountdown"></div>
     <div class="buzzerList">${items || `<span class="buzzerEmpty">Noch niemand gebuzzert…</span>`}</div>
     <div class="buzzerCurrent">
       Aktiv: <b>${activeId ? escapeHtml(getPlayerById(activeId)?.name || activeId) : "—"}</b>
       <span class="buzzerSmall">(Richtig/Falsch = ± halbe Punkte)</span>
     </div>
   `;
+
+  startBuzzTicker();
 
   area.querySelectorAll(".buzzerPick").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -898,6 +940,8 @@ function renderBuzzerUI() {
         clearTimeout(current._buzzTimer);
         current._buzzTimer = null;
       }
+
+      stopBuzzTicker();
 
       renderBuzzerUI();
       updateHostButtonsForPhase();
@@ -950,6 +994,8 @@ function resetGame() {
   used.clear();
 
   stopAudio();
+  stopBuzzTicker();
+
   if (overlay) overlay.classList.remove("show");
 
   if (current && current._buzzTimer) clearTimeout(current._buzzTimer);
@@ -1021,7 +1067,7 @@ onSync((msg) => {
     current.buzzed[pid] = true;
     current.buzzQueue.push(pid);
 
-    // (optional) auto-active wenn noch keiner aktiv ist
+    // auto-active wenn noch keiner aktiv ist
     if (!current.buzzerActiveId) current.buzzerActiveId = pid;
 
     renderBuzzerUI();
