@@ -173,6 +173,8 @@ body{
   text-align:right;
 }
 
+.hint{ color: var(--muted); }
+
 /* Board */
 .board{
   display:grid;
@@ -402,10 +404,6 @@ body{
 body[data-role="board"] .playersActions{ display:none !important; }
 body[data-role="board"] .tile{ cursor: default !important; }
 
-@media (max-width: 800px){
-  .players{ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-}
-
 /* =========================
    TIMER UI
 ========================= */
@@ -416,7 +414,22 @@ body[data-role="board"] .tile{ cursor: default !important; }
   background: rgba(255,255,255,.08);
   border: 1px solid rgba(255,255,255,.14);
   display: grid;
-  gap: 6px;
+  gap: 8px;
+}
+
+.timerTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-weight: 900;
+}
+
+.timerLabel{
+  color: rgba(234,242,255,.92);
+}
+
+.timerText{
+  color: var(--accent);
 }
 
 .timerBarBg{
@@ -426,27 +439,6 @@ body[data-role="board"] .tile{ cursor: default !important; }
   background: rgba(255,255,255,.12);
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.12);
-}
-
-.timerBar{
-  height: 100%;
-  width: 0%;
-  border-radius: 999px;
-  background: rgba(247,201,72,.95);
-  transition: width 120ms linear;
-  overflow:hidden;
-}
-
-.timerText{
-  font-weight: 900;
-  color: rgba(234,242,255,.92);
-}
-
-/* ✅ Soundtracks Play Button */
-.audioPlayBtn{
-  margin-top: 10px;
-  width: 100%;
-  font-weight: 900;
 }
 
 .timerFill{
@@ -460,23 +452,17 @@ body[data-role="board"] .tile{ cursor: default !important; }
 .timerWrap.danger .timerFill{
   background: rgba(255,92,92,.9);
 }
-
 .timerWrap.danger .timerText{
   color: rgba(255,92,92,.95);
 }
 
-.timerTop{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+/* ✅ Soundtracks Play Button */
+.audioPlayBtn{
+  margin-top: 10px;
+  width: 100%;
   font-weight: 900;
-  margin-bottom: 8px;
 }
 
-.timerLabel{
-  color: rgba(234,242,255,.92);
-}
-
-.timerText{
-  color: var(--accent);
+@media (max-width: 800px){
+  .players{ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 }

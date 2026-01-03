@@ -1,7 +1,7 @@
 /*************************************************
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
  * - Host baut/steuert, Boards schauen & buzzern
- * - Server: relayed Nachrichten + speichert letzten Snapshot
+ * - Timer sync via endsAt (Host authoritative)
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -22,20 +22,14 @@ function connectWS() {
 
   ws.addEventListener("open", () => {
     wsReady = true;
-
     for (const msg of wsQueue) ws.send(msg);
     wsQueue = [];
-
     emitSync({ type: "request_state" });
   });
 
   ws.addEventListener("message", (e) => {
     let msg;
-    try {
-      msg = JSON.parse(e.data);
-    } catch {
-      return;
-    }
+    try { msg = JSON.parse(e.data); } catch { return; }
     syncHandlers.forEach((fn) => fn(msg));
   });
 
@@ -63,27 +57,21 @@ connectWS();
 const urlParams = new URLSearchParams(location.search);
 const tabParam = urlParams.get("p");
 
-const CLIENT_ID_KEY = "jeopardy_client_id_tab_v2";
+const CLIENT_ID_KEY = "jeopardy_client_id_tab_v3";
 function getClientId() {
   if (tabParam) return `tab_${tabParam}`;
   let id = "";
-  try {
-    id = sessionStorage.getItem(CLIENT_ID_KEY) || "";
-  } catch {}
+  try { id = sessionStorage.getItem(CLIENT_ID_KEY) || ""; } catch {}
   if (!id) {
-    id =
-      globalThis.crypto?.randomUUID?.() ||
-      `c_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-    try {
-      sessionStorage.setItem(CLIENT_ID_KEY, id);
-    } catch {}
+    id = globalThis.crypto?.randomUUID?.() || `c_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    try { sessionStorage.setItem(CLIENT_ID_KEY, id); } catch {}
   }
   return id;
 }
 const clientId = getClientId();
 
 /* =========================
-   GAME DATA (DEINS – bleibt drin)
+   GAME DATA  (WICHTIG: NICHT LEER)
 ========================= */
 let gameData = {
   categories: [
@@ -94,7 +82,7 @@ let gameData = {
         { value: 200, q: "Wie hieß das erste Battlefield?", a: "Battlefield 1942" },
         { value: 300, q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?", a: "World of Warcraft" },
         { value: 400, q: "Welches Tag ist semantisch für die Hauptüberschrift gedacht?", a: "<h1>" },
-        { value: 500, q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?", a: "Geralt von Riva" },
+        { value: 500, q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?", a: "Geralt von Riva" }
       ],
     },
     {
@@ -104,17 +92,17 @@ let gameData = {
         { value: 200, q: "Land: CZ?", a: "Tschechien" },
         { value: 300, q: "Stadt: FF?", a: "Frankfurt Oder" },
         { value: 400, q: "Stadt HGR?", a: "Hansestadt Greifswald" },
-        { value: 500, q: "Land: CY?", a: "Zypern" },
+        { value: 500, q: "Land: CY?", a: "Zypern" }
       ],
     },
     {
       name: "Allgemein",
       clues: [
         { value: 100, q: "Wie oft wurde Deutschland Fußball-Weltmeister?", a: "4-mal" },
-        { value: 200, q: "Wie heißt der erste Pickup-Truck vin Tesla?", a: "Cybertruck" },
-        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?", a: "Stockholm-Syndrom" },
-        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
-        { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
+        { value: 200, q: "Wie heißt der erste Pickup-Truck von Tesla?", a: "Cybertruck" },
+        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständnis für ihre Entführer haben?", a: "Stockholm-Syndrom" },
+        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte?", a: "Heureka" },
+        { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" }
       ],
     },
     {
@@ -124,7 +112,7 @@ let gameData = {
         { value: 200, img: "Bilder/2.png", a: "Lux" },
         { value: 300, img: "Bilder/3.jpg", a: "Beyblade" },
         { value: 400, img: "Bilder/4.png", a: "Agumon (Digimon)" },
-        { value: 500, img: "Bilder/5.jpg", a: "Zonk" },
+        { value: 500, img: "Bilder/5.jpg", a: "Zonk" }
       ],
     },
     {
@@ -134,7 +122,7 @@ let gameData = {
         { value: 200, q: "Was heißt ROFL?", a: "Rolling on the Floor Laughing" },
         { value: 300, q: "Was heißt KFC?", a: "Kentucky Fried Chicken" },
         { value: 400, q: "Was heißt IGL?", a: "In Game Leader" },
-        { value: 500, q: "Was bedeutet B.A.?", a: "Bachelor of Arts" },
+        { value: 500, q: "Was bedeutet B.A.?", a: "Bachelor of Arts" }
       ],
     },
     {
@@ -144,7 +132,7 @@ let gameData = {
         { value: 200, audio: "audio/2.mp3", a: "Schloss Einstein" },
         { value: 300, audio: "audio/3.mp3", a: "Friends" },
         { value: 400, audio: "audio/4.mp3", a: "Finger Tips" },
-        { value: 500, audio: "audio/5.mp3", a: "Hör mal wer da hämmert!" },
+        { value: 500, audio: "audio/5.mp3", a: "Hör mal wer da hämmert!" }
       ],
     },
     {
@@ -154,7 +142,7 @@ let gameData = {
         { value: 200, img: "morph/2.png", a1: "morph/2a.jpg", a2: "morph/2b.jpg" },
         { value: 300, img: "morph/3.png", a1: "morph/3a.jpg", a2: "morph/3b.jpeg" },
         { value: 400, img: "morph/4.png", a1: "morph/4a.jpeg", a2: "morph/4b.jpg" },
-        { value: 500, img: "morph/5.png", a1: "morph/5a.jpg", a2: "morph/5b.png" },
+        { value: 500, img: "morph/5.png", a1: "morph/5a.jpg", a2: "morph/5b.png" }
       ],
     },
     {
@@ -164,11 +152,15 @@ let gameData = {
         { value: 200, q: "Chemie: Welche Abkürzung hat Eisen im Periodensystem?", a: "Fe" },
         { value: 300, q: "Deutsch: Wie nennt man die Grundform eines Verbs?", a: "Infinitiv" },
         { value: 400, q: "Biologie: Welcher Teil der Pflanze ist für die Photosynthese hauptverantwortlich?", a: "Die Blätter (und die darin enthaltenen Chloroplasten)" },
-        { value: 500, q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?", a: "Future Perfect" },
+        { value: 500, q: "Englisch: Welche Zeitform drückt eine Handlung aus, die in der Zukunft abgeschlossen sein wird?", a: "Future Perfect" }
       ],
     },
   ],
 };
+
+if (!gameData?.categories?.length) {
+  console.error("gameData ist leer. Bitte dein gameData im Script drin lassen.");
+}
 
 /* =========================
    DOM
@@ -179,11 +171,14 @@ const turnPill = document.getElementById("turnPill");
 
 const playersEl = document.getElementById("players");
 const resetBtn = document.getElementById("resetBtn");
+const removePlayerBtn = document.getElementById("removePlayerBtn");
 
 const modalCategory = document.getElementById("modalCategory");
 const modalValue = document.getElementById("modalValue");
 const modalQuestion = document.getElementById("modalQuestion");
 const modalAnswer = document.getElementById("modalAnswer");
+
+const timerMount = document.getElementById("timerMount");
 
 const revealBtn = document.getElementById("revealBtn");
 const rightBtn = document.getElementById("rightBtn");
@@ -204,126 +199,32 @@ const joinNameEl = document.getElementById("joinName");
    State (Host = authoritativ)
 ========================= */
 const used = new Set();
-
 let players = []; // {id, name, score}
 let activePlayerIndex = 0;
 
-let current = null;
+let current = null; // current question object
 let currentAudio = null;
+let currentAudioSrc = null;
+
+let timerUiInterval = null;
+let hostTickInterval = null;
 
 const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length || 0), 0);
 
 /* =========================
-   TIMER (Host authoritative)
-========================= */
-const QUESTION_SECONDS = 30;
-let localTimerTick = null;
-
-function isSoundtrackCategory(ci) {
-  const name = String(gameData.categories?.[ci]?.name || "");
-  return name.toLowerCase().includes("soundtrack");
-}
-
-function stopLocalTick() {
-  if (localTimerTick) clearInterval(localTimerTick);
-  localTimerTick = null;
-}
-
-function ensureTimerTick() {
-  stopLocalTick();
-  localTimerTick = setInterval(() => {
-    renderTimerUI();
-    // Host: check expiry + enforce
-    if (isHost) hostCheckTimerExpiry();
-  }, 200);
-}
-
-function startTimerForCurrent(reason = "main") {
-  if (!isHost || !current) return;
-
-  // Kein Timer bei Soundtracks
-  if (isSoundtrackCategory(current.ci)) {
-    current.timer = { enabled: false };
-    renderTimerUI();
-    syncSnapshot();
-    return;
-  }
-
-  const now = Date.now();
-  current.timer = {
-    enabled: true,
-    durationMs: QUESTION_SECONDS * 1000,
-    endsAt: now + QUESTION_SECONDS * 1000,
-    reason, // "main" oder "buzzer"
-  };
-  ensureTimerTick();
-  renderTimerUI();
-  syncSnapshot();
-}
-
-function clearTimerForCurrent() {
-  if (!current) return;
-  current.timer = { enabled: false };
-  renderTimerUI();
-  syncSnapshot();
-}
-
-function getTimerRemainingMs() {
-  if (!current?.timer?.enabled) return null;
-  const ms = (current.timer.endsAt || 0) - Date.now();
-  return Math.max(0, ms);
-}
-
-function hostCheckTimerExpiry() {
-  if (!current?.timer?.enabled) return;
-
-  const remain = getTimerRemainingMs();
-  if (remain === null) return;
-
-  if (remain <= 0) {
-    // Timer ist abgelaufen -> als "falsch" behandeln je nach Phase
-    if (current.phase === "main") {
-      answerMain(false, { byTimer: true });
-      return;
-    }
-    if (current.phase === "buzzer") {
-      // nur wenn jemand "aktiv" ist (Host hat gewählt / gelockt)
-      if (current.buzzLocked && current.buzzerActiveId) {
-        answerBuzzer(false, { byTimer: true });
-      } else {
-        // Noch niemand gewählt -> Timer neu starten bringt nix
-        // (Host muss auswählen)
-        clearTimerForCurrent();
-      }
-    }
-  }
-}
-
-/* =========================
    Helpers
 ========================= */
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-function halfPoints(v) {
-  return Math.floor((v || 0) / 2);
-}
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function halfPoints(v) { return Math.floor((v || 0) / 2); }
+
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[m]));
 }
 
-function getActivePlayer() {
-  return players[activePlayerIndex] || null;
-}
-function getPlayerById(id) {
-  return players.find((p) => p.id === id) || null;
-}
+function getActivePlayer() { return players[activePlayerIndex] || null; }
+function getPlayerById(id) { return players.find((p) => p.id === id) || null; }
 
 function renderTurn() {
   const p = getActivePlayer();
@@ -331,17 +232,141 @@ function renderTurn() {
   turnPill.textContent = p ? `${p.name} ist dran!` : "Warte auf Spieler…";
 }
 
+/* =========================
+   Audio (fix: kein Doppel-Play)
+========================= */
 function stopAudio() {
   if (!currentAudio) return;
-  currentAudio.pause();
-  currentAudio.currentTime = 0;
+  try { currentAudio.pause(); } catch {}
+  try { currentAudio.currentTime = 0; } catch {}
   currentAudio = null;
+  currentAudioSrc = null;
 }
 
 function playAudio(src) {
+  if (!src) return;
+  // ✅ Wenn gleiche Quelle schon läuft: NICHT neu starten
+  if (currentAudio && currentAudioSrc === src) return;
+
   stopAudio();
+  currentAudioSrc = src;
   currentAudio = new Audio(src);
-  currentAudio.play().catch(() => {});
+  currentAudio.play().catch(() => {
+    // Autoplay kann blocken -> Play-Button nutzen
+  });
+}
+
+/* =========================
+   Timer UI
+========================= */
+function clearTimerUI() {
+  if (timerMount) timerMount.innerHTML = "";
+  if (timerUiInterval) {
+    clearInterval(timerUiInterval);
+    timerUiInterval = null;
+  }
+}
+
+function shouldHaveTimerForCurrent() {
+  if (!current) return false;
+  // ✅ Soundtracks: KEIN TIMER (egal ob main oder buzzer)
+  const clue = gameData.categories[current.ci]?.clues?.[current.qi];
+  if (clue?.audio) return false;
+  return true;
+}
+
+function setCurrentTimer(seconds, label) {
+  if (!isHost || !current) return;
+  if (!shouldHaveTimerForCurrent()) {
+    current.timer = null;
+    return;
+  }
+  current.timer = {
+    running: true,
+    endsAt: Date.now() + seconds * 1000,
+    totalMs: seconds * 1000,
+    label: label || "Zeit"
+  };
+}
+
+function stopCurrentTimer() {
+  if (!isHost || !current) return;
+  if (current.timer) current.timer.running = false;
+}
+
+function renderTimerUIFromCurrent() {
+  clearTimerUI();
+  if (!current || !timerMount) return;
+
+  if (!current.timer || !current.timer.running || !current.timer.endsAt || !shouldHaveTimerForCurrent()) {
+    return; // kein Timer anzeigen
+  }
+
+  timerMount.innerHTML = `
+    <div class="timerWrap" id="timerWrap">
+      <div class="timerTop">
+        <div class="timerLabel">${escapeHtml(current.timer.label || "Zeit")}</div>
+        <div class="timerText" id="timerText">30s</div>
+      </div>
+      <div class="timerBarBg">
+        <div class="timerFill" id="timerFill" style="width:100%"></div>
+      </div>
+    </div>
+  `;
+
+  const wrap = document.getElementById("timerWrap");
+  const fill = document.getElementById("timerFill");
+  const text = document.getElementById("timerText");
+
+  timerUiInterval = setInterval(() => {
+    if (!current || !current.timer || !current.timer.running) return;
+
+    const now = Date.now();
+    const msLeft = Math.max(0, current.timer.endsAt - now);
+    const secLeft = Math.ceil(msLeft / 1000);
+
+    if (text) text.textContent = `${secLeft}s`;
+
+    const ratio = current.timer.totalMs ? (msLeft / current.timer.totalMs) : 0;
+    const pct = Math.max(0, Math.min(100, ratio * 100));
+    if (fill) fill.style.width = `${pct}%`;
+
+    if (wrap) {
+      if (secLeft <= 5) wrap.classList.add("danger");
+      else wrap.classList.remove("danger");
+    }
+  }, 120);
+}
+
+/* =========================
+   Host ticking: Timer expiry handling
+========================= */
+function startHostTick() {
+  if (!isHost) return;
+  if (hostTickInterval) clearInterval(hostTickInterval);
+
+  hostTickInterval = setInterval(() => {
+    if (!current || !current.timer || !current.timer.running) return;
+    if (!shouldHaveTimerForCurrent()) return;
+
+    const now = Date.now();
+    if (now < current.timer.endsAt) return;
+
+    // Timer abgelaufen -> logisch wie "Falsch" (ohne Antwort zeigen)
+    current.timer.running = false;
+
+    if (current.phase === "main") {
+      // Main-Spieler: Zeit abgelaufen => gilt wie falsch => -½ Punkte + Buzzer offen
+      answerMain(false, { timedOut: true });
+      return;
+    }
+
+    if (current.phase === "buzzer" && current.buzzerActiveId) {
+      // Buzzer-Spieler: Zeit abgelaufen => gilt wie falsch => -½ Punkte, nächster
+      answerBuzzer(false, { timedOut: true });
+      return;
+    }
+  }, 200);
 }
 
 /* =========================
@@ -365,6 +390,8 @@ function syncSnapshot() {
   emitSync({ type: "snapshot", payload: getSnapshot() });
 }
 
+let lastAppliedAudioKey = null;
+
 function applySnapshot(s) {
   if (!s) return;
 
@@ -373,7 +400,6 @@ function applySnapshot(s) {
 
   players = Array.isArray(s.players) ? s.players : [];
   activePlayerIndex = Number.isInteger(s.activePlayerIndex) ? s.activePlayerIndex : 0;
-
   current = s.current || null;
 
   renderPlayers();
@@ -387,13 +413,32 @@ function applySnapshot(s) {
         fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
         overlay.classList.add("show");
 
+        // ✅ Timer UI sync (Board)
+        renderTimerUIFromCurrent();
+
+        // ✅ Antwort sichtbar? -> Timer ausblenden/stoppen (Board: nur UI)
         setAnswerVisible(!!current.revealed);
+
+        // ✅ Buzzer UI
         renderBuzzerUI();
-        renderTimerUI();
+
+        // ✅ Audio sync (Board hört jetzt auch Sound)
+        if (clue.audio) {
+          const audioKey = `${current.ci}-${current.qi}`;
+          if (lastAppliedAudioKey !== audioKey) {
+            playAudio(clue.audio);
+            lastAppliedAudioKey = audioKey;
+          }
+        } else {
+          stopAudio();
+          lastAppliedAudioKey = null;
+        }
       }
     } else {
       overlay.classList.remove("show");
+      clearTimerUI();
       stopAudio();
+      lastAppliedAudioKey = null;
     }
   }
 
@@ -401,21 +446,26 @@ function applySnapshot(s) {
     if (s.overlays?.endOpen) showEndScoreboard();
     else hideEndScoreboard();
   }
-
-  // Boards: local tick für UI
-  ensureTimerTick();
 }
 
 /* =========================
    Players UI
 ========================= */
+let selectedPlayerIdForRemoval = null;
+
 function renderPlayers() {
   if (!playersEl) return;
   playersEl.innerHTML = "";
 
   players.forEach((p, idx) => {
     const card = document.createElement("div");
-    card.className = "playerCard" + (idx === activePlayerIndex ? " active" : "");
+    const isActive = idx === activePlayerIndex;
+    const isSelected = isHost && selectedPlayerIdForRemoval === p.id;
+
+    card.className =
+      "playerCard" +
+      (isActive ? " active" : "") +
+      (isSelected ? " active" : "");
 
     const top = document.createElement("div");
     top.className = "playerTop";
@@ -431,9 +481,10 @@ function renderPlayers() {
       });
       top.appendChild(nameInput);
 
-      card.title = "Klicken: als aktiven Spieler setzen";
+      card.title = "Klicken: Aktiv + Markieren zum Entfernen";
       card.addEventListener("click", () => {
         activePlayerIndex = clamp(idx, 0, players.length - 1);
+        selectedPlayerIdForRemoval = p.id;
         renderPlayers();
         renderTurn();
         syncSnapshot();
@@ -454,6 +505,7 @@ function renderPlayers() {
 
     top.appendChild(scoreEl);
     card.appendChild(top);
+
     playersEl.appendChild(card);
   });
 }
@@ -526,56 +578,6 @@ function setAnswerVisible(visible) {
   }
 }
 
-function ensureTimerUI() {
-  if (!modalQuestion) return;
-  if (document.getElementById("timerWrap")) return;
-
-  const wrap = document.createElement("div");
-  wrap.id = "timerWrap";
-  wrap.className = "timerWrap";
-  wrap.innerHTML = `
-    <div class="timerTop">
-      <span class="timerLabel">⏱️ Zeit</span>
-      <span class="timerText" id="timerText">—</span>
-    </div>
-    <div class="timerBar">
-      <div class="timerFill" id="timerFill"></div>
-    </div>
-  `;
-  modalQuestion.appendChild(wrap);
-}
-
-function renderTimerUI() {
-  if (!overlay?.classList?.contains("show")) return;
-  if (!current) return;
-
-  ensureTimerUI();
-
-  const wrap = document.getElementById("timerWrap");
-  const text = document.getElementById("timerText");
-  const fill = document.getElementById("timerFill");
-  if (!wrap || !text || !fill) return;
-
-  if (!current.timer?.enabled) {
-    wrap.style.display = "none";
-    return;
-  }
-
-  wrap.style.display = "block";
-
-  const remainMs = getTimerRemainingMs();
-  const dur = current.timer.durationMs || QUESTION_SECONDS * 1000;
-
-  const remainSec = Math.ceil((remainMs || 0) / 1000);
-  text.textContent = `${remainSec}s`;
-
-  const pct = remainMs === null ? 0 : Math.max(0, Math.min(1, (remainMs || 0) / dur));
-  fill.style.width = `${pct * 100}%`;
-
-  if (remainSec <= 5) wrap.classList.add("danger");
-  else wrap.classList.remove("danger");
-}
-
 function fillModalFromClue(clue, categoryName, value) {
   if (modalCategory) modalCategory.textContent = categoryName || "Kategorie";
   if (modalValue) modalValue.textContent = value ?? clue.value ?? 0;
@@ -584,13 +586,20 @@ function fillModalFromClue(clue, categoryName, value) {
     if (clue.img) {
       modalQuestion.innerHTML = `<img src="${clue.img}" alt="Fragebild" class="whoImg">`;
     } else if (clue.audio) {
-      modalQuestion.innerHTML = `<div class="questionText">🎵 Soundtrack läuft…</div>`;
+      modalQuestion.innerHTML = `
+        <div class="questionText">🎵 Soundtrack</div>
+        <button class="btn audioPlayBtn" id="audioPlayBtn">▶ Abspielen</button>
+      `;
+      const btn = document.getElementById("audioPlayBtn");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          playAudio(clue.audio);
+        });
+      }
     } else {
       modalQuestion.textContent = clue.q ?? "";
     }
   }
-
-  ensureTimerUI();
 
   const layout = ensureAnswerLayout();
   if (!layout) return;
@@ -609,7 +618,6 @@ function fillModalFromClue(clue, categoryName, value) {
   }
 
   setAnswerVisible(false);
-  renderTimerUI();
 }
 
 /* =========================
@@ -638,17 +646,24 @@ function openQuestion(ci, qi) {
 
     mainPlayerId,
     ...clue,
-    timer: { enabled: false },
+
+    timer: null
   };
 
+  // ✅ Audio: nur beim Öffnen auto-play (Host). Board bekommt sync + Play-Button.
   if (clue.audio) playAudio(clue.audio);
   else stopAudio();
 
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
 
-  // ✅ Timer startet hier (außer Soundtracks)
-  startTimerForCurrent("main");
+  // ✅ Timer: 30s NUR wenn nicht Soundtracks
+  if (!clue.audio) {
+    setCurrentTimer(30, "Zeit läuft");
+  } else {
+    current.timer = null;
+  }
 
+  renderTimerUIFromCurrent();
   updateHostButtonsForPhase();
   renderBuzzerUI();
 
@@ -658,27 +673,41 @@ function openQuestion(ci, qi) {
 
 function closeModal() {
   if (!isHost) return;
-  if (!current) return;
+  if (!current) {
+    if (overlay) overlay.classList.remove("show");
+    stopAudio();
+    clearTimerUI();
+    syncSnapshot();
+    return;
+  }
 
-  // Wenn Host X drückt: Frage gilt als "benutzt", damit sie vom Board verschwindet
-  used.add(current.key);
+  // ✅ FIX #1: Wenn wir im BUZZER sind und Host schließt -> Frage MUSS als benutzt gelten
+  if (current.phase === "buzzer") {
+    used.add(current.key);
+    endQuestionAndAdvance();
+    return;
+  }
 
+  // Im "main" schließen = Abbrechen (ohne used)
   if (overlay) overlay.classList.remove("show");
   stopAudio();
-  clearTimerForCurrent();
-
+  clearTimerUI();
   current = null;
-  buildBoard();
-
   syncSnapshot();
 }
 
 /* =========================
    Reveal (Host only)
+   FIX #2: Timer stoppt beim Antworten anzeigen
 ========================= */
 function revealAnswer() {
   if (!isHost || !current) return;
   current.revealed = true;
+
+  // ✅ Timer stoppen (kein Weiterlaufen beim Antworten)
+  stopCurrentTimer();
+  renderTimerUIFromCurrent(); // verschwindet automatisch
+
   setAnswerVisible(true);
   updateHostButtonsForPhase();
   syncSnapshot();
@@ -688,7 +717,14 @@ function revealAnswer() {
    Host Buttons enabling
 ========================= */
 function updateHostButtonsForPhase() {
-  if (!isHost || !current) return;
+  if (!isHost) return;
+
+  if (!current) {
+    if (revealBtn) revealBtn.disabled = true;
+    if (rightBtn) rightBtn.disabled = true;
+    if (wrongBtn) wrongBtn.disabled = true;
+    return;
+  }
 
   if (revealBtn) revealBtn.disabled = false;
 
@@ -699,7 +735,7 @@ function updateHostButtonsForPhase() {
   }
 
   if (current.phase === "buzzer") {
-    const hasActive = !!current.buzzerActiveId && current.buzzLocked;
+    const hasActive = !!current.buzzerActiveId;
     if (rightBtn) rightBtn.disabled = !hasActive;
     if (wrongBtn) wrongBtn.disabled = !hasActive;
   }
@@ -725,7 +761,7 @@ function nextPlayer() {
 function endQuestionAndAdvance() {
   if (overlay) overlay.classList.remove("show");
   stopAudio();
-  clearTimerForCurrent();
+  clearTimerUI();
 
   current = null;
   buildBoard();
@@ -743,6 +779,10 @@ function endQuestionAndAdvance() {
 function answerMain(correct, meta = {}) {
   if (!isHost || !current) return;
 
+  // ✅ Timer stoppen bei Entscheidung
+  stopCurrentTimer();
+  renderTimerUIFromCurrent();
+
   const v = current.value || 0;
   const mainId = current.mainPlayerId;
 
@@ -753,20 +793,17 @@ function answerMain(correct, meta = {}) {
     return;
   }
 
-  // falsch / timer abgelaufen
+  // falsch / timeout
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
+  // ✅ BUZZER PHASE: bleibt offen, KEIN Auto-Close
   current.phase = "buzzer";
   current.revealed = false;
-
   current.buzzLocked = false;
   current.buzzed = {};
   current.buzzQueue = [];
   current.buzzerActiveId = null;
-
-  // ✅ Timer fürs Buzzern startet NICHT sofort,
-  // erst wenn Host einen Buzzer auswählt (buzzLocked=true)
-  clearTimerForCurrent();
+  current.timer = null; // Buzz an sich hat KEIN Zeitlimit
 
   setAnswerVisible(false);
   renderBuzzerUI();
@@ -776,6 +813,10 @@ function answerMain(correct, meta = {}) {
 
 function answerBuzzer(correct, meta = {}) {
   if (!isHost || !current) return;
+
+  // ✅ Timer stoppen bei Entscheidung
+  stopCurrentTimer();
+  renderTimerUIFromCurrent();
 
   const v = current.value || 0;
   const pid = current.buzzerActiveId;
@@ -788,23 +829,28 @@ function answerBuzzer(correct, meta = {}) {
     return;
   }
 
-  // falsch / timer abgelaufen
   addScoreByPlayerId(pid, -halfPoints(v));
 
+  // Nächster in Queue
   current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
   current.buzzerActiveId = current.buzzQueue[0] || null;
 
   if (!current.buzzerActiveId) {
-    used.add(current.key);
-    endQuestionAndAdvance();
+    // ✅ keiner mehr -> Host kann jetzt schließen ODER Antwort zeigen
+    current.buzzLocked = false;
+    current.timer = null;
+    renderBuzzerUI();
+    updateHostButtonsForPhase();
+    syncSnapshot();
     return;
   }
 
-  // Host muss ggf. neu auswählen -> lock bleibt an, aber aktiver wechselt
-  // Timer neu starten für den neuen aktiven
-  current.buzzLocked = true;
-  startTimerForCurrent("buzzer");
+  // ✅ wenn neuer aktiver Buzzer ausgewählt -> bekommt 30s (kein Soundtracks)
+  if (shouldHaveTimerForCurrent()) {
+    setCurrentTimer(30, "Buzzer-Zeit");
+  }
 
+  renderTimerUIFromCurrent();
   renderBuzzerUI();
   updateHostButtonsForPhase();
   syncSnapshot();
@@ -838,7 +884,7 @@ function renderBuzzerUI() {
       return;
     }
 
-    // ❌ aktiver Hauptspieler darf nicht buzzern
+    // Der aktive Spieler darf nicht buzzern
     const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
     if (isMainTurnPlayer) {
       area.innerHTML = `
@@ -848,6 +894,7 @@ function renderBuzzerUI() {
       return;
     }
 
+    // Sperre: nur der ausgewählte darf "antworten"
     if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">🔒 Gesperrt</div>
@@ -877,11 +924,9 @@ function renderBuzzerUI() {
 
     const buzzBtn = document.getElementById("buzzBtn");
     if (buzzBtn && !already) {
-      buzzBtn.addEventListener(
-        "click",
-        () => emitSync({ type: "buzz", payload: { id: clientId } }),
-        { once: true }
-      );
+      buzzBtn.addEventListener("click", () => {
+        emitSync({ type: "buzz", payload: { id: clientId } });
+      }, { once: true });
     }
 
     return;
@@ -891,14 +936,12 @@ function renderBuzzerUI() {
   const queue = current.buzzQueue || [];
   const activeId = current.buzzerActiveId || null;
 
-  const items = queue
-    .map((pid) => {
-      const p = getPlayerById(pid);
-      const name = p ? p.name : pid;
-      const active = pid === activeId;
-      return `<button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
-    })
-    .join("");
+  const items = queue.map((pid) => {
+    const p = getPlayerById(pid);
+    const name = p ? p.name : pid;
+    const active = pid === activeId;
+    return `<button class="buzzerPick ${active ? "active" : ""}" data-pid="${escapeHtml(pid)}">${escapeHtml(name)}</button>`;
+  }).join("");
 
   area.innerHTML = `
     <div class="buzzerHint">Buzz-Reihenfolge (klicken zum Auswählen)</div>
@@ -917,9 +960,14 @@ function renderBuzzerUI() {
       current.buzzerActiveId = pid;
       current.buzzLocked = true;
 
-      // ✅ Jetzt startet der 30s Timer für den ausgewählten Buzzer
-      startTimerForCurrent("buzzer");
+      // ✅ erst JETZT startet Timer für den aktiven Buzzer (nicht fürs Buzzern selbst)
+      if (shouldHaveTimerForCurrent()) {
+        setCurrentTimer(30, "Buzzer-Zeit");
+      } else {
+        current.timer = null;
+      }
 
+      renderTimerUIFromCurrent();
       renderBuzzerUI();
       updateHostButtonsForPhase();
       syncSnapshot();
@@ -943,17 +991,13 @@ function showEndScoreboard() {
     { player: top3[2], rank: 3 },
   ];
 
-  podiumEl.innerHTML = order
-    .map(
-      ({ player, rank }) => `
+  podiumEl.innerHTML = order.map(({ player, rank }) => `
     <div class="podiumSlot rank${rank}">
       <div class="podiumRank">Platz ${rank}</div>
       <p class="podiumName">${escapeHtml(player.name)}</p>
       <div class="podiumScore">${player.score} Punkte</div>
     </div>
-  `
-    )
-    .join("");
+  `).join("");
 
   endOverlay.classList.add("show");
   endOverlay.setAttribute("aria-hidden", "false");
@@ -967,17 +1011,19 @@ function hideEndScoreboard() {
 
 function resetGame() {
   if (!isHost) return;
+
   hideEndScoreboard();
   used.clear();
 
   stopAudio();
-  clearTimerForCurrent();
+  clearTimerUI();
 
   if (overlay) overlay.classList.remove("show");
   current = null;
 
   players = players.map((p) => ({ ...p, score: 0 }));
   activePlayerIndex = 0;
+  selectedPlayerIdForRemoval = null;
 
   renderPlayers();
   renderTurn();
@@ -1023,21 +1069,20 @@ onSync((msg) => {
 
   if (msg.type === "buzz") {
     if (!current || current.phase !== "buzzer") return;
-    if (current.buzzLocked) return;
 
     const pid = msg.payload?.id;
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
-    if (current?.mainPlayerId && pid === current.mainPlayerId) return;
+    // Aktiver Spieler darf nicht buzzern
+    if (current.mainPlayerId && pid === current.mainPlayerId) return;
 
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
     current.buzzQueue.push(pid);
 
-    if (!current.buzzerActiveId) current.buzzerActiveId = pid;
-
+    // Host wählt aktiv per Klick -> buzzLocked bleibt false bis Auswahl
     renderBuzzerUI();
     updateHostButtonsForPhase();
     syncSnapshot();
@@ -1051,19 +1096,17 @@ onSync((msg) => {
 if (isHost) {
   if (revealBtn) revealBtn.onclick = revealAnswer;
 
-  if (rightBtn)
-    rightBtn.onclick = () => {
-      if (!current) return;
-      if (current.phase === "main") answerMain(true);
-      else answerBuzzer(true);
-    };
+  if (rightBtn) rightBtn.onclick = () => {
+    if (!current) return;
+    if (current.phase === "main") answerMain(true);
+    else answerBuzzer(true);
+  };
 
-  if (wrongBtn)
-    wrongBtn.onclick = () => {
-      if (!current) return;
-      if (current.phase === "main") answerMain(false);
-      else answerBuzzer(false);
-    };
+  if (wrongBtn) wrongBtn.onclick = () => {
+    if (!current) return;
+    if (current.phase === "main") answerMain(false);
+    else answerBuzzer(false);
+  };
 
   if (closeBtn) closeBtn.onclick = closeModal;
 
@@ -1075,11 +1118,10 @@ if (isHost) {
 
   if (resetBtn) resetBtn.onclick = resetGame;
 
-  if (endCloseBtn)
-    endCloseBtn.onclick = () => {
-      hideEndScoreboard();
-      syncSnapshot();
-    };
+  if (endCloseBtn) endCloseBtn.onclick = () => {
+    hideEndScoreboard();
+    syncSnapshot();
+  };
 
   if (endNewGameBtn) endNewGameBtn.onclick = resetGame;
 
@@ -1091,6 +1133,27 @@ if (isHost) {
       }
     });
   }
+
+  // ✅ Spieler entfernen: markierten löschen
+  if (removePlayerBtn) {
+    removePlayerBtn.addEventListener("click", () => {
+      if (!selectedPlayerIdForRemoval) return;
+
+      const idx = players.findIndex(p => p.id === selectedPlayerIdForRemoval);
+      if (idx === -1) return;
+
+      players.splice(idx, 1);
+
+      if (activePlayerIndex >= players.length) activePlayerIndex = Math.max(0, players.length - 1);
+      selectedPlayerIdForRemoval = players[activePlayerIndex]?.id || null;
+
+      renderPlayers();
+      renderTurn();
+      syncSnapshot();
+    });
+  }
+
+  startHostTick();
 }
 
 /* =========================
@@ -1127,7 +1190,5 @@ if (!isHost) {
 renderPlayers();
 renderTurn();
 buildBoard();
-ensureTimerTick();
 
-// Host should push initial snapshot so boards see board immediately
 if (isHost) syncSnapshot();
