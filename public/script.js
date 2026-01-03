@@ -279,22 +279,25 @@ function applySnapshot(s) {
   renderTurn();
   buildBoard();
 
-  if (overlay) {
-    if (s.overlays?.questionOpen && current) {
-      const clue = gameData.categories[current.ci]?.clues?.[current.qi];
-      if (clue) {
-        fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
-        overlay.classList.add("show");
-        setAnswerVisible(!!current.revealed);
-        renderBuzzerUI();
-        renderTimerUI();
-      }
-    } else {
-      overlay.classList.remove("show");
-      stopAudio();
-      stopTick();
+if (overlay) {
+  if (s.overlays?.questionOpen && current) {
+    const clue = gameData.categories[current.ci]?.clues?.[current.qi];
+    if (clue) {
+      fillModalFromClue(clue, gameData.categories[current.ci].name, clue.value);
+      overlay.classList.add("show");
+      setAnswerVisible(!!current.revealed);
+      renderBuzzerUI();
+      renderTimerUI();
+
+      // ✅ WICHTIG: Board-Timer/Countdown wieder starten, nachdem er beim Schließen gestoppt wurde
+      startTickLoop();
     }
+  } else {
+    overlay.classList.remove("show");
+    stopAudio();
+    stopTick();
   }
+}
 
   if (endOverlay) {
     if (s.overlays?.endOpen) showEndScoreboard();
