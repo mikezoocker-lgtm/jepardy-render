@@ -410,7 +410,11 @@ body[data-role="board"] .tile{ cursor: default !important; }
    TIMER UI
 ========================= */
 .timerWrap{
-  margin-top: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.14);
   display: grid;
   gap: 6px;
 }
@@ -430,6 +434,7 @@ body[data-role="board"] .tile{ cursor: default !important; }
   border-radius: 999px;
   background: rgba(247,201,72,.95);
   transition: width 120ms linear;
+  overflow:hidden;
 }
 
 .timerText{
@@ -442,4 +447,36 @@ body[data-role="board"] .tile{ cursor: default !important; }
   margin-top: 10px;
   width: 100%;
   font-weight: 900;
+}
+
+.timerFill{
+  height: 100%;
+  width: 100%;
+  background: rgba(247,201,72,.85);
+  border-radius: 999px;
+  transition: width 120ms linear;
+}
+
+.timerWrap.danger .timerFill{
+  background: rgba(255,92,92,.9);
+}
+
+.timerWrap.danger .timerText{
+  color: rgba(255,92,92,.95);
+}
+
+.timerTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.timerLabel{
+  color: rgba(234,242,255,.92);
+}
+
+.timerText{
+  color: var(--accent);
 }

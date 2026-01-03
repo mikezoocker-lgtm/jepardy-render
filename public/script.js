@@ -2,10 +2,6 @@
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
  * - Host baut/steuert, Boards schauen & buzzern
  * - Server: relayed Nachrichten + speichert letzten Snapshot
- *
- * FIXES:
- * 1) X schließen markiert Frage als benutzt (auch nach Buzzer / niemand buzzert)
- * 2) Timer läuft synchron auf Host + Board (30s pro Versuch, außer "Soundtracks")
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -26,8 +22,10 @@ function connectWS() {
 
   ws.addEventListener("open", () => {
     wsReady = true;
+
     for (const msg of wsQueue) ws.send(msg);
     wsQueue = [];
+
     emitSync({ type: "request_state" });
   });
 
@@ -85,7 +83,7 @@ function getClientId() {
 const clientId = getClientId();
 
 /* =========================
-   GAME DATA (NICHT LEER!)
+   GAME DATA (DEINS – bleibt drin)
 ========================= */
 let gameData = {
   categories: [
@@ -113,9 +111,9 @@ let gameData = {
       name: "Allgemein",
       clues: [
         { value: 100, q: "Wie oft wurde Deutschland Fußball-Weltmeister?", a: "4-mal" },
-        { value: 200, q: "Wie heißt der erste Pickup-Truck von Tesla?", a: "Cybertruck" },
-        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständnis für ihre Entführer haben?", a: "Stockholm-Syndrom" },
-        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte?", a: "Heureka" },
+        { value: 200, q: "Wie heißt der erste Pickup-Truck vin Tesla?", a: "Cybertruck" },
+        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?", a: "Stockholm-Syndrom" },
+        { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
         { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
       ],
     },
@@ -187,8 +185,6 @@ const modalValue = document.getElementById("modalValue");
 const modalQuestion = document.getElementById("modalQuestion");
 const modalAnswer = document.getElementById("modalAnswer");
 
-const timerMount = document.getElementById("timerMount");
-
 const revealBtn = document.getElementById("revealBtn");
 const rightBtn = document.getElementById("rightBtn");
 const wrongBtn = document.getElementById("wrongBtn");
@@ -212,23 +208,96 @@ const used = new Set();
 let players = []; // {id, name, score}
 let activePlayerIndex = 0;
 
-let current = null; // enthält aktuelle Frage inkl. timer
+let current = null;
 let currentAudio = null;
 
 const TOTAL_CLUES = gameData.categories.reduce((s, c) => s + (c.clues?.length || 0), 0);
 
 /* =========================
-   Local Timer Render Loop
+   TIMER (Host authoritative)
 ========================= */
-let localTimerInterval = null;
-function startLocalTimerLoop() {
-  if (localTimerInterval) clearInterval(localTimerInterval);
-  localTimerInterval = setInterval(() => {
-    renderTimerUI();
-    if (isHost) hostCheckTimerExpiry();
-  }, 120);
+const QUESTION_SECONDS = 30;
+let localTimerTick = null;
+
+function isSoundtrackCategory(ci) {
+  const name = String(gameData.categories?.[ci]?.name || "");
+  return name.toLowerCase().includes("soundtrack");
 }
-startLocalTimerLoop();
+
+function stopLocalTick() {
+  if (localTimerTick) clearInterval(localTimerTick);
+  localTimerTick = null;
+}
+
+function ensureTimerTick() {
+  stopLocalTick();
+  localTimerTick = setInterval(() => {
+    renderTimerUI();
+    // Host: check expiry + enforce
+    if (isHost) hostCheckTimerExpiry();
+  }, 200);
+}
+
+function startTimerForCurrent(reason = "main") {
+  if (!isHost || !current) return;
+
+  // Kein Timer bei Soundtracks
+  if (isSoundtrackCategory(current.ci)) {
+    current.timer = { enabled: false };
+    renderTimerUI();
+    syncSnapshot();
+    return;
+  }
+
+  const now = Date.now();
+  current.timer = {
+    enabled: true,
+    durationMs: QUESTION_SECONDS * 1000,
+    endsAt: now + QUESTION_SECONDS * 1000,
+    reason, // "main" oder "buzzer"
+  };
+  ensureTimerTick();
+  renderTimerUI();
+  syncSnapshot();
+}
+
+function clearTimerForCurrent() {
+  if (!current) return;
+  current.timer = { enabled: false };
+  renderTimerUI();
+  syncSnapshot();
+}
+
+function getTimerRemainingMs() {
+  if (!current?.timer?.enabled) return null;
+  const ms = (current.timer.endsAt || 0) - Date.now();
+  return Math.max(0, ms);
+}
+
+function hostCheckTimerExpiry() {
+  if (!current?.timer?.enabled) return;
+
+  const remain = getTimerRemainingMs();
+  if (remain === null) return;
+
+  if (remain <= 0) {
+    // Timer ist abgelaufen -> als "falsch" behandeln je nach Phase
+    if (current.phase === "main") {
+      answerMain(false, { byTimer: true });
+      return;
+    }
+    if (current.phase === "buzzer") {
+      // nur wenn jemand "aktiv" ist (Host hat gewählt / gelockt)
+      if (current.buzzLocked && current.buzzerActiveId) {
+        answerBuzzer(false, { byTimer: true });
+      } else {
+        // Noch niemand gewählt -> Timer neu starten bringt nix
+        // (Host muss auswählen)
+        clearTimerForCurrent();
+      }
+    }
+  }
+}
 
 /* =========================
    Helpers
@@ -262,9 +331,6 @@ function renderTurn() {
   turnPill.textContent = p ? `${p.name} ist dran!` : "Warte auf Spieler…";
 }
 
-/* =========================
-   Audio
-========================= */
 function stopAudio() {
   if (!currentAudio) return;
   currentAudio.pause();
@@ -275,120 +341,7 @@ function stopAudio() {
 function playAudio(src) {
   stopAudio();
   currentAudio = new Audio(src);
-  currentAudio.play().catch(() => {
-    // Autoplay kann auf Board geblockt sein -> dann muss Button gedrückt werden
-  });
-}
-
-/* =========================
-   Timer Logic (Host-autorität)
-========================= */
-const TIMER_SECONDS = 30;
-
-function clueHasTimer(ci) {
-  const cat = gameData.categories[ci];
-  if (!cat) return true;
-  // Kategorie Soundtracks hat keinen Timer
-  if ((cat.name || "").trim().toLowerCase() === "soundtracks") return false;
-  return true;
-}
-
-function startTimer() {
-  if (!current) return;
-  if (!clueHasTimer(current.ci)) {
-    current.timer = { enabled: false };
-    return;
-  }
-  current.timer = {
-    enabled: true,
-    startMs: Date.now(),
-    durationMs: TIMER_SECONDS * 1000,
-  };
-}
-
-function restartTimer() {
-  if (!current) return;
-  startTimer();
-}
-
-function getTimerRemainingMs() {
-  if (!current?.timer?.enabled) return null;
-  const start = current.timer.startMs || 0;
-  const dur = current.timer.durationMs || 0;
-  const rem = (start + dur) - Date.now();
-  return rem;
-}
-
-function hostCheckTimerExpiry() {
-  if (!isHost || !current) return;
-  if (!current.timer?.enabled) return;
-
-  const rem = getTimerRemainingMs();
-  if (rem === null) return;
-  if (rem > 0) return;
-
-  // Timer abgelaufen -> wie "Falsch"
-  if (current.phase === "main") {
-    answerMain(false, /*fromTimer*/ true);
-  } else if (current.phase === "buzzer") {
-    // Wenn buzzer aktiv ist -> der verliert halbe Punkte und nächster
-    if (current.buzzerActiveId) {
-      answerBuzzer(false, /*fromTimer*/ true);
-    } else {
-      // niemand ausgewählt -> einfach Frage beenden
-      used.add(current.key);
-      endQuestionAndAdvance();
-    }
-  }
-}
-
-/* =========================
-   Timer UI (Host + Board)
-========================= */
-function ensureTimerMount() {
-  if (!timerMount) return null;
-  if (timerMount.dataset.ready === "1") return timerMount;
-
-  timerMount.innerHTML = `
-    <div class="timerWrap" id="timerWrap">
-      <div class="timerText" id="timerText">⏱️ 30s</div>
-      <div class="timerBarBg"><div class="timerBar" id="timerBar"></div></div>
-    </div>
-  `;
-  timerMount.dataset.ready = "1";
-  return timerMount;
-}
-
-function renderTimerUI() {
-  if (!overlay?.classList?.contains("show")) {
-    // Wenn Modal zu ist, nichts rendern
-    return;
-  }
-
-  const mount = ensureTimerMount();
-  if (!mount) return;
-
-  const wrap = document.getElementById("timerWrap");
-  const textEl = document.getElementById("timerText");
-  const barEl = document.getElementById("timerBar");
-  if (!wrap || !textEl || !barEl) return;
-
-  if (!current?.timer?.enabled) {
-    wrap.style.display = "none";
-    return;
-  }
-
-  wrap.style.display = "grid";
-
-  const remMs = getTimerRemainingMs();
-  const dur = current.timer.durationMs || (TIMER_SECONDS * 1000);
-
-  const clamped = Math.max(0, Math.min(dur, remMs ?? dur));
-  const seconds = Math.ceil(clamped / 1000);
-  const pct = ((dur - clamped) / dur) * 100;
-
-  textEl.textContent = `⏱️ ${seconds}s`;
-  barEl.style.width = `${pct}%`;
+  currentAudio.play().catch(() => {});
 }
 
 /* =========================
@@ -436,18 +389,6 @@ function applySnapshot(s) {
 
         setAnswerVisible(!!current.revealed);
         renderBuzzerUI();
-
-        // Sound: Host autoplay, Board versucht und bietet Play-Button
-        if (clue.audio) {
-          if (isHost) playAudio(clue.audio);
-          else {
-            // Versuch
-            playAudio(clue.audio);
-          }
-        } else {
-          stopAudio();
-        }
-
         renderTimerUI();
       }
     } else {
@@ -460,6 +401,9 @@ function applySnapshot(s) {
     if (s.overlays?.endOpen) showEndScoreboard();
     else hideEndScoreboard();
   }
+
+  // Boards: local tick für UI
+  ensureTimerTick();
 }
 
 /* =========================
@@ -510,7 +454,6 @@ function renderPlayers() {
 
     top.appendChild(scoreEl);
     card.appendChild(top);
-
     playersEl.appendChild(card);
   });
 }
@@ -520,12 +463,6 @@ function renderPlayers() {
 ========================= */
 function buildBoard() {
   if (!board) return;
-
-  if (!gameData?.categories?.length) {
-    console.warn("gameData ist leer. Bitte dein gameData im Script drin lassen.");
-    return;
-  }
-
   board.innerHTML = "";
   board.style.gridTemplateColumns = `repeat(${gameData.categories.length}, 1fr)`;
 
@@ -589,6 +526,56 @@ function setAnswerVisible(visible) {
   }
 }
 
+function ensureTimerUI() {
+  if (!modalQuestion) return;
+  if (document.getElementById("timerWrap")) return;
+
+  const wrap = document.createElement("div");
+  wrap.id = "timerWrap";
+  wrap.className = "timerWrap";
+  wrap.innerHTML = `
+    <div class="timerTop">
+      <span class="timerLabel">⏱️ Zeit</span>
+      <span class="timerText" id="timerText">—</span>
+    </div>
+    <div class="timerBar">
+      <div class="timerFill" id="timerFill"></div>
+    </div>
+  `;
+  modalQuestion.appendChild(wrap);
+}
+
+function renderTimerUI() {
+  if (!overlay?.classList?.contains("show")) return;
+  if (!current) return;
+
+  ensureTimerUI();
+
+  const wrap = document.getElementById("timerWrap");
+  const text = document.getElementById("timerText");
+  const fill = document.getElementById("timerFill");
+  if (!wrap || !text || !fill) return;
+
+  if (!current.timer?.enabled) {
+    wrap.style.display = "none";
+    return;
+  }
+
+  wrap.style.display = "block";
+
+  const remainMs = getTimerRemainingMs();
+  const dur = current.timer.durationMs || QUESTION_SECONDS * 1000;
+
+  const remainSec = Math.ceil((remainMs || 0) / 1000);
+  text.textContent = `${remainSec}s`;
+
+  const pct = remainMs === null ? 0 : Math.max(0, Math.min(1, (remainMs || 0) / dur));
+  fill.style.width = `${pct * 100}%`;
+
+  if (remainSec <= 5) wrap.classList.add("danger");
+  else wrap.classList.remove("danger");
+}
+
 function fillModalFromClue(clue, categoryName, value) {
   if (modalCategory) modalCategory.textContent = categoryName || "Kategorie";
   if (modalValue) modalValue.textContent = value ?? clue.value ?? 0;
@@ -597,20 +584,13 @@ function fillModalFromClue(clue, categoryName, value) {
     if (clue.img) {
       modalQuestion.innerHTML = `<img src="${clue.img}" alt="Fragebild" class="whoImg">`;
     } else if (clue.audio) {
-      // Board: Autoplay kann blocken -> Play Button
-      modalQuestion.innerHTML = `
-        <div class="questionText">🎵 Soundtrack</div>
-        <button class="btn audioPlayBtn" id="playAudioBtn" type="button">▶️ Abspielen</button>
-      `;
-      const btn = document.getElementById("playAudioBtn");
-      if (btn) btn.onclick = () => playAudio(clue.audio);
+      modalQuestion.innerHTML = `<div class="questionText">🎵 Soundtrack läuft…</div>`;
     } else {
       modalQuestion.textContent = clue.q ?? "";
     }
   }
 
-  ensureTimerMount();
-  renderTimerUI();
+  ensureTimerUI();
 
   const layout = ensureAnswerLayout();
   if (!layout) return;
@@ -629,6 +609,7 @@ function fillModalFromClue(clue, categoryName, value) {
   }
 
   setAnswerVisible(false);
+  renderTimerUI();
 }
 
 /* =========================
@@ -657,15 +638,16 @@ function openQuestion(ci, qi) {
 
     mainPlayerId,
     ...clue,
+    timer: { enabled: false },
   };
-
-  // Timer starten (außer Soundtracks)
-  startTimer();
 
   if (clue.audio) playAudio(clue.audio);
   else stopAudio();
 
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
+
+  // ✅ Timer startet hier (außer Soundtracks)
+  startTimerForCurrent("main");
 
   updateHostButtonsForPhase();
   renderBuzzerUI();
@@ -674,13 +656,21 @@ function openQuestion(ci, qi) {
   syncSnapshot();
 }
 
-function closeModalHostMarkUsed() {
-  // ✅ FIX: Wenn Host mit X schließt, wird die Frage benutzt + Board updated
+function closeModal() {
   if (!isHost) return;
   if (!current) return;
 
+  // Wenn Host X drückt: Frage gilt als "benutzt", damit sie vom Board verschwindet
   used.add(current.key);
-  endQuestionAndAdvance();
+
+  if (overlay) overlay.classList.remove("show");
+  stopAudio();
+  clearTimerForCurrent();
+
+  current = null;
+  buildBoard();
+
+  syncSnapshot();
 }
 
 /* =========================
@@ -690,6 +680,7 @@ function revealAnswer() {
   if (!isHost || !current) return;
   current.revealed = true;
   setAnswerVisible(true);
+  updateHostButtonsForPhase();
   syncSnapshot();
 }
 
@@ -708,7 +699,7 @@ function updateHostButtonsForPhase() {
   }
 
   if (current.phase === "buzzer") {
-    const hasActive = !!current.buzzerActiveId;
+    const hasActive = !!current.buzzerActiveId && current.buzzLocked;
     if (rightBtn) rightBtn.disabled = !hasActive;
     if (wrongBtn) wrongBtn.disabled = !hasActive;
   }
@@ -734,6 +725,7 @@ function nextPlayer() {
 function endQuestionAndAdvance() {
   if (overlay) overlay.classList.remove("show");
   stopAudio();
+  clearTimerForCurrent();
 
   current = null;
   buildBoard();
@@ -748,7 +740,7 @@ function endQuestionAndAdvance() {
   syncSnapshot();
 }
 
-function answerMain(correct, fromTimer = false) {
+function answerMain(correct, meta = {}) {
   if (!isHost || !current) return;
 
   const v = current.value || 0;
@@ -761,18 +753,20 @@ function answerMain(correct, fromTimer = false) {
     return;
   }
 
-  // falsch / timer abgelaufen: Hauptspieler - halbe Punkte
+  // falsch / timer abgelaufen
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
   current.phase = "buzzer";
   current.revealed = false;
+
   current.buzzLocked = false;
   current.buzzed = {};
   current.buzzQueue = [];
   current.buzzerActiveId = null;
 
-  // Timer für Buzzer wird erst gestartet sobald jemand aktiv wird (bei erstem Buzz)
-  current.timer = { enabled: clueHasTimer(current.ci) };
+  // ✅ Timer fürs Buzzern startet NICHT sofort,
+  // erst wenn Host einen Buzzer auswählt (buzzLocked=true)
+  clearTimerForCurrent();
 
   setAnswerVisible(false);
   renderBuzzerUI();
@@ -780,7 +774,7 @@ function answerMain(correct, fromTimer = false) {
   syncSnapshot();
 }
 
-function answerBuzzer(correct, fromTimer = false) {
+function answerBuzzer(correct, meta = {}) {
   if (!isHost || !current) return;
 
   const v = current.value || 0;
@@ -794,22 +788,23 @@ function answerBuzzer(correct, fromTimer = false) {
     return;
   }
 
-  // falsch / timer: Buzzer - halbe Punkte
+  // falsch / timer abgelaufen
   addScoreByPlayerId(pid, -halfPoints(v));
 
-  // nächsten Buzzer auswählen
   current.buzzQueue = (current.buzzQueue || []).filter((x) => x !== pid);
   current.buzzerActiveId = current.buzzQueue[0] || null;
 
   if (!current.buzzerActiveId) {
-    // niemand mehr -> Frage beendet/benutzt
     used.add(current.key);
     endQuestionAndAdvance();
     return;
   }
 
-  // neuer Versuch -> timer neu starten
-  restartTimer();
+  // Host muss ggf. neu auswählen -> lock bleibt an, aber aktiver wechselt
+  // Timer neu starten für den neuen aktiven
+  current.buzzLocked = true;
+  startTimerForCurrent("buzzer");
+
   renderBuzzerUI();
   updateHostButtonsForPhase();
   syncSnapshot();
@@ -843,7 +838,7 @@ function renderBuzzerUI() {
       return;
     }
 
-    // aktiver Spieler darf nicht buzzern
+    // ❌ aktiver Hauptspieler darf nicht buzzern
     const isMainTurnPlayer = current.mainPlayerId && clientId === current.mainPlayerId;
     if (isMainTurnPlayer) {
       area.innerHTML = `
@@ -853,7 +848,6 @@ function renderBuzzerUI() {
       return;
     }
 
-    // Sperre: nur ausgewählter darf "antworten"
     if (current.buzzLocked && current.buzzerActiveId && clientId !== current.buzzerActiveId) {
       area.innerHTML = `
         <div class="buzzerHint">🔒 Gesperrt</div>
@@ -885,9 +879,7 @@ function renderBuzzerUI() {
     if (buzzBtn && !already) {
       buzzBtn.addEventListener(
         "click",
-        () => {
-          emitSync({ type: "buzz", payload: { id: clientId } });
-        },
+        () => emitSync({ type: "buzz", payload: { id: clientId } }),
         { once: true }
       );
     }
@@ -925,8 +917,8 @@ function renderBuzzerUI() {
       current.buzzerActiveId = pid;
       current.buzzLocked = true;
 
-      // ✅ Beim Auswählen startet/erneuert der 30s Timer (außer Soundtracks)
-      restartTimer();
+      // ✅ Jetzt startet der 30s Timer für den ausgewählten Buzzer
+      startTimerForCurrent("buzzer");
 
       renderBuzzerUI();
       updateHostButtonsForPhase();
@@ -979,6 +971,8 @@ function resetGame() {
   used.clear();
 
   stopAudio();
+  clearTimerForCurrent();
+
   if (overlay) overlay.classList.remove("show");
   current = null;
 
@@ -1007,7 +1001,6 @@ onSync((msg) => {
     return;
   }
 
-  // Host verarbeitet join/buzz
   if (!isHost) return;
 
   if (msg.type === "join") {
@@ -1030,29 +1023,20 @@ onSync((msg) => {
 
   if (msg.type === "buzz") {
     if (!current || current.phase !== "buzzer") return;
-
-    // nur wenn noch nicht gelocked
     if (current.buzzLocked) return;
 
     const pid = msg.payload?.id;
     if (!pid) return;
     if (!getPlayerById(pid)) return;
 
-    // aktiver Spieler darf nicht buzzern
     if (current?.mainPlayerId && pid === current.mainPlayerId) return;
 
-    // pro Frage nur 1x buzz
     if (current.buzzed?.[pid]) return;
 
     current.buzzed[pid] = true;
     current.buzzQueue.push(pid);
 
-    // ✅ Erster Buzzer wird automatisch aktiv + gelocked + Timer startet
-    if (!current.buzzerActiveId) {
-      current.buzzerActiveId = pid;
-      current.buzzLocked = true;
-      restartTimer();
-    }
+    if (!current.buzzerActiveId) current.buzzerActiveId = pid;
 
     renderBuzzerUI();
     updateHostButtonsForPhase();
@@ -1081,12 +1065,11 @@ if (isHost) {
       else answerBuzzer(false);
     };
 
-  // ✅ X schließen = Frage wird benutzt (Fix #1)
-  if (closeBtn) closeBtn.onclick = closeModalHostMarkUsed;
+  if (closeBtn) closeBtn.onclick = closeModal;
 
   if (overlay) {
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) closeModalHostMarkUsed();
+      if (e.target === overlay) closeModal();
     });
   }
 
@@ -1144,6 +1127,7 @@ if (!isHost) {
 renderPlayers();
 renderTurn();
 buildBoard();
+ensureTimerTick();
 
-// Host pusht initial snapshot
+// Host should push initial snapshot so boards see board immediately
 if (isHost) syncSnapshot();
