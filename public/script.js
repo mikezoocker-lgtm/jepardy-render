@@ -615,12 +615,25 @@ function answerMain(correct) {
   const v = current.value || 0;
   const mainId = current.mainPlayerId;
 
-  if (correct) {
-    if (mainId) addScoreByPlayerId(mainId, v);
-    used.add(current.key);
+if (correct) {
+  if (mainId) addScoreByPlayerId(mainId, v);
+
+  // ✅ Antwort sichtbar machen (Host + Board)
+  current.revealed = true;
+  setAnswerVisible(true);
+  renderBuzzerUI();     // falls jemand vorher gebuzzert hat / UI aktualisieren
+  updateHostButtonsForPhase();
+  syncSnapshot();
+
+  // ✅ Frage als benutzt markieren, aber erst NACH kurzem Anzeigen weiter
+  used.add(current.key);
+
+  setTimeout(() => {
     endQuestionAndAdvance();
-    return;
-  }
+  }, 900);
+
+  return;
+}
 
   if (mainId) addScoreByPlayerId(mainId, -halfPoints(v));
 
@@ -644,12 +657,25 @@ function answerBuzzer(correct) {
   const pid = current.buzzerActiveId;
   if (!pid) return;
 
-  if (correct) {
-    addScoreByPlayerId(pid, halfPoints(v));
-    used.add(current.key);
+if (correct) {
+  addScoreByPlayerId(pid, halfPoints(v));
+
+  // ✅ Antwort sichtbar machen (Host + Board)
+  current.revealed = true;
+  setAnswerVisible(true);
+  renderBuzzerUI();
+  updateHostButtonsForPhase();
+  syncSnapshot();
+
+  used.add(current.key);
+
+  setTimeout(() => {
     endQuestionAndAdvance();
-    return;
-  }
+  }, 900);
+
+  return;
+}
+
 
   addScoreByPlayerId(pid, -halfPoints(v));
 
