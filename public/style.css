@@ -12,19 +12,20 @@
 }
 
 :root{
-  /* ✅ Grün + Gold (wie Logo) */
-  --bg:#081f12;
+  --bg:#06140c;
   --panel:#0b2d18;
+
+  /* Hauptfarbe GRÜN */
   --green1:#1f7a3a;
   --green2:#2fbf71;
-
-  --accent:#f7d046;      /* Gold */
-  --accent2:#ffeaa0;     /* Warmes Gold */
+  --greenGlow: rgba(47,191,113,.55);
 
   --text:#ffffff;
   --muted:#cfe6d6;
+
   --danger:#ff5c5c;
   --ok:#36d399;
+
   --radius:16px;
 }
 
@@ -39,10 +40,10 @@ body{
   align-items:flex-start;
   padding:20px;
 
-  /* ✅ Grünlicher Show-Hintergrund + Logo */
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.18), transparent 60%),
-    linear-gradient(rgba(8,31,18,.92), rgba(8,31,18,.92)),
+    radial-gradient(circle at top, rgba(47,191,113,.14), transparent 60%),
+    radial-gradient(circle at center, rgba(47,191,113,.10), transparent 70%),
+    linear-gradient(rgba(6,20,12,.96), rgba(6,20,12,.96)),
     url("logo.png");
   background-repeat:no-repeat;
   background-position:center center;
@@ -52,69 +53,80 @@ body{
   color: var(--text);
 }
 
+/* ================= APP / RAHMEN ================= */
+
 .app{
   width:min(1600px,100%);
   display:grid;
   gap:16px;
 
-  /* ✅ Game-Show Rahmen */
   position: relative;
-  padding: 22px;
-  border-radius: 30px;
+  padding: 26px;
+  border-radius: 34px;
 
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.18), transparent 55%),
-    linear-gradient(180deg, rgba(11,45,24,.55), rgba(11,45,24,.55));
+    radial-gradient(circle at top, rgba(47,191,113,.14), transparent 55%),
+    linear-gradient(180deg, rgba(11,45,24,.60), rgba(6,20,12,.75));
 
-  border: 6px solid var(--accent);
+  /* dicker Rahmen */
+  border: 14px solid var(--green2);
+
   box-shadow:
-    0 0 0 6px rgba(122,90,18,.95),
-    0 0 40px rgba(247,208,70,.35),
-    inset 0 0 22px rgba(255,215,120,.18);
+    0 0 0 8px rgba(22,110,62,.95),
+    0 0 55px var(--greenGlow),
+    inset 0 0 26px rgba(47,191,113,.18);
 }
 
-/* ❌ STREIFEN ENTFERNT: vorher war hier repeating-linear-gradient */
+/* ✅ Grüne „Glühbirnen“-Punkte – OHNE Streifen, OHNE Gelb */
 .app::before{
   content:"";
   position:absolute;
-  inset:-14px;
-  border-radius: 40px;
+  inset:-20px;
+  border-radius: 48px;
   pointer-events:none;
 
-  /* ✅ “Bulb glow” ohne Streifen */
+  /* Punkte entlang der Kante (oben/unten/links/rechts) */
   background:
-    radial-gradient(circle at 10% 20%, rgba(255,234,160,.22), transparent 35%),
-    radial-gradient(circle at 90% 30%, rgba(255,234,160,.18), transparent 40%),
-    radial-gradient(circle at 30% 95%, rgba(255,234,160,.16), transparent 45%);
+    radial-gradient(circle, rgba(47,191,113,.95) 0 3px, transparent 4px) 0 0/28px 28px,
+    radial-gradient(circle, rgba(47,191,113,.45) 0 10px, transparent 12px) 0 0/28px 28px;
 
-  opacity:.9;
+  /* nur KANTEN sichtbar */
+  -webkit-mask:
+    linear-gradient(#000,#000) content-box,
+    linear-gradient(#000,#000);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+
+  padding: 18px;
+
+  filter: drop-shadow(0 0 10px rgba(47,191,113,.55));
+  opacity: .95;
 }
 
-.app > *{
-  position: relative;
-  z-index: 1;
-}
+.app > *{ position: relative; z-index: 1; }
 
-/* Zentrales Logo */
+/* ================= LOGO ================= */
+
 .centerLogo{
   display:flex;
   justify-content:center;
   align-items:center;
-  padding: 8px 0 0;
+  padding: 6px 0 0;
 }
 .centerLogo img{
-  width: min(200px, 65vw);
+  width: min(220px, 70vw);
   height: auto;
   filter:
     drop-shadow(0 18px 40px rgba(0,0,0,.55))
-    drop-shadow(0 0 22px rgba(247,208,70,.35));
-  opacity: .95;
+    drop-shadow(0 0 26px rgba(47,191,113,.35));
+  opacity: .96;
 }
 
-/* Panels */
+/* ================= PANELS ================= */
+
 .playersPanel{
   background: rgba(0,0,0,.22);
-  border: 1px solid rgba(255,234,160,.18);
+  border: 1px solid rgba(47,191,113,.18);
   border-radius: var(--radius);
   padding:14px;
   display:grid;
@@ -123,7 +135,7 @@ body{
 
 .panelTop{
   display:flex;
-  justify-content:flex-end;
+  justify-content:space-between;
   align-items:center;
   gap:12px;
 }
@@ -137,11 +149,11 @@ body{
 .pill{
   padding:8px 14px;
   border-radius:999px;
-  background: rgba(247,208,70,.18);
-  color: var(--accent2);
-  font-weight:700;
+  background: rgba(47,191,113,.14);
+  color: #dfffee;
+  font-weight:900;
   white-space:nowrap;
-  border: 1px solid rgba(255,234,160,.25);
+  border: 1px solid rgba(47,191,113,.22);
   box-shadow: 0 10px 22px rgba(0,0,0,.25);
 }
 
@@ -164,12 +176,6 @@ body{
   align-items:center;
   gap:12px;
 }
-.playersHeader h2{
-  margin:0;
-  font-size:16px;
-  letter-spacing:.4px;
-  color: rgba(255,255,255,.95);
-}
 .playersActions{
   display:flex;
   gap:8px;
@@ -188,17 +194,18 @@ body{
   padding:12px;
   border-radius:14px;
   background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,234,160,.16);
+  border: 1px solid rgba(47,191,113,.16);
   display:flex;
   flex-direction:column;
   gap:8px;
   cursor:pointer;
 }
+
 .playerCard.active{
-  border-color: rgba(247,208,70,.6);
+  border-color: rgba(47,191,113,.65);
   box-shadow:
-    0 0 0 2px rgba(247,208,70,.22) inset,
-    0 0 26px rgba(247,208,70,.18);
+    0 0 0 2px rgba(47,191,113,.28) inset,
+    0 0 26px rgba(47,191,113,.18);
 }
 
 .playerTop{
@@ -207,6 +214,7 @@ body{
   justify-content:space-between;
   gap:8px;
 }
+
 .playerTop input{
   width:100%;
   background: transparent;
@@ -216,21 +224,23 @@ body{
   padding:8px 10px;
   outline:none;
 }
+
 .playerScore{
   font-weight:900;
-  color: var(--accent);
+  color: #dfffee;
   min-width:42px;
   text-align:right;
 }
 
-/* Board */
+/* ================= BOARD ================= */
+
 .board{
   display:grid;
   grid-template-columns: repeat(8, 1fr);
   gap:10px;
 }
 
-/* ✅ Kategorie Kacheln: grün + zentriert */
+/* Kategorie: Text mittig */
 .cat{
   display:flex;
   justify-content:center;
@@ -241,24 +251,23 @@ body{
   color:#fff;
 
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.45), rgba(31,122,58,.9)),
-    linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.22));
+    radial-gradient(circle at top, rgba(47,191,113,.40), rgba(31,122,58,.92)),
+    linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.22));
   border-radius:14px;
   padding:12px 10px;
   letter-spacing:.8px;
 
-  border: 1px solid rgba(255,234,160,.18);
+  border: 1px solid rgba(47,191,113,.18);
   box-shadow:
     inset 0 -6px 0 rgba(0,0,0,.25),
     0 10px 24px rgba(0,0,0,.35);
 }
 
-/* ✅ Frage-Kacheln: grün + goldene Zahlen */
 .tile{
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.35), rgba(31,122,58,.85)),
-    linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.22));
-  color: var(--accent);
+    radial-gradient(circle at top, rgba(47,191,113,.28), rgba(31,122,58,.88)),
+    linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.22));
+  color: #dfffee;
   font-size:26px;
   font-weight:900;
   height:90px;
@@ -268,7 +277,7 @@ body{
   border-radius:14px;
   cursor:pointer;
 
-  border: 1px solid rgba(255,234,160,.14);
+  border: 1px solid rgba(47,191,113,.14);
 
   transition:
     transform 180ms ease,
@@ -280,7 +289,7 @@ body{
   transform: translateY(-4px) scale(1.04);
   box-shadow:
     0 18px 40px rgba(0,0,0,.45),
-    0 0 0 2px rgba(247,208,70,.25) inset,
+    0 0 0 2px rgba(47,191,113,.22) inset,
     0 0 22px rgba(47,191,113,.18);
 }
 
@@ -295,7 +304,8 @@ body{
   box-shadow:none;
 }
 
-/* Modal */
+/* ================= MODAL ================= */
+
 .overlay{
   position:fixed;
   inset:0;
@@ -311,13 +321,13 @@ body{
 .modal{
   background:
     radial-gradient(circle at top, rgba(47,191,113,.18), transparent 55%),
-    linear-gradient(180deg, rgba(11,45,24,.95), rgba(8,24,52,.92));
+    linear-gradient(180deg, rgba(11,45,24,.95), rgba(6,20,12,.92));
   padding:20px;
   border-radius:18px;
   width:min(700px,100%);
-  border: 2px solid rgba(247,208,70,.55);
+  border: 2px solid rgba(47,191,113,.55);
   box-shadow:
-    0 0 35px rgba(247,208,70,.25),
+    0 0 35px rgba(47,191,113,.25),
     0 18px 60px rgba(0,0,0,.6);
 }
 
@@ -351,7 +361,7 @@ body{
 
 .btnOk{color:var(--ok)}
 .btnNo{color:var(--danger)}
-.btnPrimary{color:var(--accent)}
+.btnPrimary{color:#dfffee}
 
 .whoImg,
 .morphQuestionImg{
@@ -376,27 +386,8 @@ body{
   border-radius:12px;
 }
 
-/* Endscreen Podium */
-.endModal .podium{
-  display:flex;
-  gap:12px;
-  justify-content:center;
-  align-items:flex-end;
-  padding: 14px 4px;
-}
-.podiumSlot{
-  width: min(220px, 28vw);
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,234,160,.22);
-  border-radius: 16px;
-  padding: 12px;
-  text-align:center;
-}
-.podiumRank{ color: var(--muted); font-weight:900; }
-.podiumName{ margin: 10px 0 6px; font-size: 18px; font-weight: 900; }
-.podiumScore{ color: var(--accent); font-weight: 900; font-size: 18px; }
+/* ================= JOIN ================= */
 
-/* Join */
 .joinBar{
   display:flex;
   gap:10px;
@@ -413,10 +404,10 @@ body{
   outline: none;
 }
 
-/* Antwortbereich-Inhalt */
+/* ================= BUZZER ================= */
+
 .answerContent{ margin-top: 10px; }
 
-/* ---------------- BUZZER ---------------- */
 .buzzerArea{ margin-bottom: 10px; }
 .buzzerHint{
   color: rgba(234,242,255,.88);
@@ -444,25 +435,11 @@ body{
   font-weight: 900;
 }
 .buzzerPick.active{
-  border-color: rgba(247,208,70,.55);
-  box-shadow: 0 0 0 2px rgba(247,208,70,.22) inset;
+  border-color: rgba(47,191,113,.55);
+  box-shadow: 0 0 0 2px rgba(47,191,113,.22) inset;
 }
 .buzzerEmpty{ color: rgba(183,199,230,.85); }
 .buzzerCurrent{ color: rgba(234,242,255,.92); font-weight: 700; }
-.buzzerSmall{
-  display:block;
-  color: rgba(183,199,230,.85);
-  font-weight: 700;
-  margin-top: 4px;
-}
-
-/* Board darf nicht steuern (außer Join & Buzz) */
-body[data-role="board"] .playersActions{ display:none !important; }
-body[data-role="board"] .tile{ cursor: default !important; }
-
-@media (max-width: 800px){
-  .players{ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-}
 
 .buzzerLocked{
   padding: 12px;
@@ -471,4 +448,58 @@ body[data-role="board"] .tile{ cursor: default !important; }
   border: 1px solid rgba(255,255,255,.14);
   color: rgba(234,242,255,.9);
   font-weight: 800;
+}
+
+body[data-role="board"] .playersActions{ display:none !important; }
+body[data-role="board"] .tile{ cursor: default !important; }
+
+@media (max-width: 800px){
+  .players{ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+}
+
+/* ================= SPLASH (Logo Startscreen) ================= */
+
+.splash{
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(47,191,113,.35), rgba(0,0,0,.92) 70%);
+  z-index: 9999;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.splashInner{
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+  padding: 22px 26px;
+  border-radius: 18px;
+  background: rgba(6,20,12,.35);
+  border: 1px solid rgba(47,191,113,.22);
+}
+
+.splashLogo{
+  width: min(700px, 75vw);
+  height: auto;
+  animation: splashPop 900ms ease-out both;
+  filter:
+    drop-shadow(0 10px 25px rgba(0,0,0,.55))
+    drop-shadow(0 0 35px rgba(47,191,113,.75));
+}
+
+@keyframes splashPop{
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1.0); }
+}
+
+.splash.hide{
+  animation: splashFadeOut 350ms ease forwards;
+}
+@keyframes splashFadeOut{
+  to { opacity: 0; visibility: hidden; }
 }

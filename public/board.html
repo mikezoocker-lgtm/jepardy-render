@@ -8,6 +8,13 @@
 </head>
 <body data-role="board">
 
+  <!-- ✅ Splash Screen -->
+  <div class="splash" id="splash" role="button" tabindex="0" aria-label="Splash schließen">
+    <div class="splashInner">
+      <img src="logo.png" alt="Logo" class="splashLogo">
+    </div>
+  </div>
+
   <div class="app">
 
     <div class="centerLogo">
@@ -30,7 +37,7 @@
     <div class="board" id="board"></div>
   </div>
 
-  <!-- Frage-Modal (Board: Anzeige + Buzz + Timer) -->
+  <!-- Frage-Modal -->
   <div class="overlay" id="overlay">
     <div class="modal">
       <div class="modalTop">
@@ -41,8 +48,6 @@
           </div>
 
           <div class="question" id="modalQuestion"></div>
-
-          <!-- ✅ Timer wird per JS hier reingerendert -->
           <div id="timerMount"></div>
         </div>
       </div>

@@ -8,6 +8,13 @@
 </head>
 <body data-role="host">
 
+  <!-- ✅ Splash Screen -->
+  <div class="splash" id="splash" role="button" tabindex="0" aria-label="Splash schließen">
+    <div class="splashInner">
+      <img src="logo.png" alt="Logo" class="splashLogo">
+    </div>
+  </div>
+
   <div class="app">
 
     <div class="centerLogo">
@@ -16,17 +23,17 @@
 
     <section class="playersPanel">
       <div class="panelTop">
-      <div class="playersHeader">
-        <div class="playersActions">
-          <button class="btn" id="removePlayerBtn">Spieler entfernen</button>
+        <div class="playersHeader">
+          <div class="playersActions">
+            <button class="btn" id="removePlayerBtn">Spieler entfernen</button>
+          </div>
         </div>
-      </div>
+
         <div class="panelControls">
           <div class="pill" id="turnPill">—</div>
           <button class="btn" id="resetBtn">Neues Spiel</button>
         </div>
       </div>
-
 
       <div class="players" id="players"></div>
     </section>
@@ -45,8 +52,6 @@
           </div>
 
           <div class="question" id="modalQuestion"></div>
-
-          <!-- ✅ Timer wird per JS hier reingerendert -->
           <div id="timerMount"></div>
         </div>
 

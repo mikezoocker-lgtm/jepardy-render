@@ -1299,4 +1299,17 @@ buildBoard();
 startTickLoop();
 if (isHost) syncSnapshot();
 
+// -------- Splash Screen (wieder aktiv)
+const splash = document.getElementById("splash");
+function hideSplash() {
+  if (!splash || splash.classList.contains("hide")) return;
+  splash.classList.add("hide");
+  setTimeout(() => splash.remove(), 400);
+}
+if (splash) {
+  splash.addEventListener("click", hideSplash);
+  splash.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "Escape") hideSplash();
+  });
+}
 
