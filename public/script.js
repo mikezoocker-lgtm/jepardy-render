@@ -1,40 +1,11 @@
-/* public/script.js */
-
-/* =========================
-   Splash (Start-Logo) – click-to-close
-   (funktioniert mit defer + ohne inline scripts)
-========================= */
-(function initSplash() {
-  const splash = document.getElementById("splash");
-  if (!splash) return;
-
-  const hideSplash = () => {
-    if (splash.classList.contains("hide")) return;
-    splash.classList.add("hide");
-    setTimeout(() => {
-      try { splash.remove(); } catch {}
-    }, 400);
-  };
-
-  // Click anywhere on splash
-  splash.addEventListener("click", hideSplash);
-
-  // Keyboard support
-  splash.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " " || e.key === "Escape") hideSplash();
-  });
-
-  // Make sure it can receive focus for keydown (already has tabindex in HTML, but safe)
-  try { splash.tabIndex = splash.tabIndex || 0; } catch {}
-})();
-
 /*************************************************
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
  * - Host baut/steuert, Boards schauen & buzzern
  * - Timer: 30s pro Versuch (außer Soundtracks)
  * - Buzz Window: 5s zum Buzzern (visuell)
  * - Antwort wird NUR durch Host "Antwort zeigen" eingeblendet
- * - ✅ Soundtracks spielen automatisch, wenn Host die Frage öffnet
+ * - ✅ Splash Screen mit Logo (klickbar)
+ * - ✅ Soundtracks: Host autoplay beim Öffnen; Board versucht autoplay -> falls geblockt: "Sound starten" + Auto-Start nach erstem Klick
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -79,7 +50,6 @@ function emitSync(obj) {
 }
 
 function onSync(cb) { syncHandlers.push(cb); }
-
 connectWS();
 
 /* =========================
@@ -258,7 +228,6 @@ function isSoundtracksCategory(ci) {
   const name = (gameData.categories?.[ci]?.name || "").toLowerCase();
   return name.includes("soundtrack");
 }
-
 function renderTurn() {
   if (!turnPill) return;
   const p = getActivePlayer();
@@ -266,19 +235,133 @@ function renderTurn() {
 }
 
 /* =========================
-   Audio (Host local)
+   SPLASH (Logo beim Start, klickbar)
 ========================= */
+let splashEl = null;
+let splashDismissed = false;
+const SPLASH_KEY = `jeopardy_splash_dismissed_${ROLE}`;
+
+function showSplash() {
+  try {
+    if (sessionStorage.getItem(SPLASH_KEY) === "1") {
+      splashDismissed = true;
+      return;
+    }
+  } catch {}
+
+  splashEl = document.createElement("div");
+  splashEl.className = "splashOverlay";
+  splashEl.innerHTML = `
+    <div class="splashInner" role="button" tabindex="0" aria-label="Start">
+      <img class="splashLogo" src="logo.png" alt="Quiz Logo">
+      <div class="splashHint">Klicken/Tippen zum Starten</div>
+    </div>
+  `;
+  document.body.appendChild(splashEl);
+
+  const dismiss = () => {
+    if (splashDismissed) return;
+    splashDismissed = true;
+    try { sessionStorage.setItem(SPLASH_KEY, "1"); } catch {}
+    splashEl?.classList.add("hide");
+    setTimeout(() => splashEl?.remove(), 180);
+    unlockAudio(); // wichtig fürs Board-Audio
+  };
+
+  splashEl.addEventListener("click", dismiss);
+  splashEl.addEventListener("pointerdown", dismiss);
+  splashEl.addEventListener("touchstart", dismiss);
+  splashEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " " || e.code === "Space") dismiss();
+  });
+}
+
+/* =========================
+   AUDIO (Host + Board mit Autoplay-Fallback)
+========================= */
+let audioUnlocked = false;
+let pendingAudioSrc = null;
+
 function stopAudio() {
   if (!currentAudio) return;
-  currentAudio.pause();
-  currentAudio.currentTime = 0;
+  try { currentAudio.pause(); } catch {}
+  try { currentAudio.currentTime = 0; } catch {}
   currentAudio = null;
 }
-function playAudio(src) {
-  if (!isHost) return; // Audio nur Host
+
+function unlockAudio() {
+  audioUnlocked = true;
+  if (pendingAudioSrc) {
+    const src = pendingAudioSrc;
+    pendingAudioSrc = null;
+    requestPlayAudio(src, { force: true });
+  }
+}
+
+// globaler Unlock bei erster User-Interaktion (zusätzlich zur Splash)
+(function setupGlobalAudioUnlock() {
+  const once = () => {
+    unlockAudio();
+    document.removeEventListener("pointerdown", once, true);
+    document.removeEventListener("keydown", once, true);
+    document.removeEventListener("touchstart", once, true);
+  };
+  document.addEventListener("pointerdown", once, true);
+  document.addEventListener("touchstart", once, true);
+  document.addEventListener("keydown", once, true);
+})();
+
+function showSoundStartButton(src) {
+  if (!modalQuestion) return;
+
+  let holder = document.getElementById("soundStartHolder");
+  if (!holder) {
+    holder = document.createElement("div");
+    holder.id = "soundStartHolder";
+    holder.style.marginTop = "10px";
+    modalQuestion.appendChild(holder);
+  }
+
+  holder.innerHTML = `
+    <button class="btn" id="soundStartBtn">🔊 Sound starten</button>
+    <div class="soundHint">Wenn dein Browser Autoplay blockt: einmal klicken, dann läuft's.</div>
+  `;
+
+  const btn = document.getElementById("soundStartBtn");
+  if (btn) {
+    btn.onclick = () => {
+      unlockAudio();
+      requestPlayAudio(src, { force: true });
+    };
+  }
+}
+
+function requestPlayAudio(src, opts = {}) {
+  if (!src) return;
+
   stopAudio();
   currentAudio = new Audio(src);
-  currentAudio.play().catch(() => {});
+
+  const attempt = currentAudio.play();
+  if (attempt && typeof attempt.then === "function") {
+    attempt
+      .then(() => {
+        pendingAudioSrc = null;
+        const holder = document.getElementById("soundStartHolder");
+        if (holder) holder.innerHTML = "";
+      })
+      .catch(() => {
+        if (!opts.force) {
+          pendingAudioSrc = src;
+          showSoundStartButton(src);
+        }
+      });
+  } else {
+    if (!opts.force) {
+      pendingAudioSrc = src;
+      showSoundStartButton(src);
+    }
+  }
 }
 
 /* =========================
@@ -327,8 +410,16 @@ function applySnapshot(s) {
         renderBuzzerUI();
         renderTimerUI();
         updateHostButtons();
-
         startTickLoop();
+
+        // ✅ Board: Soundtrack beim Öffnen versuchen zu starten
+        if (!isHost && clue.audio) {
+          if (audioUnlocked) requestPlayAudio(clue.audio);
+          else {
+            pendingAudioSrc = clue.audio;
+            showSoundStartButton(clue.audio);
+          }
+        }
       }
     } else {
       overlay.classList.remove("show");
@@ -514,9 +605,7 @@ function fillModalFromClue(clue, categoryName, value) {
   setAnswerVisible(false);
 
   const playBtn = document.getElementById("playTrackBtn");
-  if (playBtn && clue.audio) {
-    playBtn.onclick = () => playAudio(clue.audio);
-  }
+  if (playBtn && clue.audio) playBtn.onclick = () => requestPlayAudio(clue.audio);
 }
 
 /* =========================
@@ -547,32 +636,16 @@ function renderTimerUI() {
   const el = document.getElementById("timerArea");
   if (!el) return;
 
-  if (!current) {
-    el.textContent = "";
-    return;
-  }
-
-  if (isSoundtracksCategory(current.ci)) {
-    el.textContent = "";
-    return;
-  }
-
-  if (current.revealed) {
-    el.textContent = "";
-    return;
-  }
+  if (!current) { el.textContent = ""; return; }
+  if (isSoundtracksCategory(current.ci)) { el.textContent = ""; return; }
+  if (current.revealed) { el.textContent = ""; return; }
 
   if (current.timerUntil) {
     const left = Math.max(0, current.timerUntil - Date.now());
     el.textContent = `⏱️ ${(left / 1000).toFixed(1).replace(".", ",")}s`;
     return;
   }
-
-  if (current.timerExpired || current.timerFrozen) {
-    el.textContent = `⏱️ 0,0s`;
-    return;
-  }
-
+  if (current.timerExpired || current.timerFrozen) { el.textContent = `⏱️ 0,0s`; return; }
   el.textContent = "";
 }
 
@@ -583,14 +656,11 @@ function startTickLoop() {
   stopTick();
   tickInterval = setInterval(() => {
     if (!current) return;
-
     renderTimerUI();
     renderBuzzCountdownUI();
 
     if (isHost) {
-      if (current.timerUntil && Date.now() >= current.timerUntil && !current.revealed) {
-        handleAttemptTimeout();
-      }
+      if (current.timerUntil && Date.now() >= current.timerUntil && !current.revealed) handleAttemptTimeout();
 
       if (
         current.phase === "buzzer" &&
@@ -604,7 +674,6 @@ function startTickLoop() {
     }
   }, TICK_MS);
 }
-
 function stopTick() {
   if (tickInterval) clearInterval(tickInterval);
   tickInterval = null;
@@ -617,11 +686,8 @@ function handleAttemptTimeout() {
   current.timerFrozen = true;
   current.timerExpired = true;
 
-  if (current.phase === "main") {
-    answerMain(false, true);
-  } else if (current.phase === "buzzer") {
-    answerBuzzer(false, true);
-  }
+  if (current.phase === "main") answerMain(false, true);
+  else if (current.phase === "buzzer") answerBuzzer(false, true);
 }
 
 /* =========================
@@ -760,8 +826,8 @@ function openQuestion(ci, qi) {
   stopAudio();
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
 
-  // ✅ Soundtracks automatisch starten beim Öffnen (Host)
-  if (clue.audio) playAudio(clue.audio);
+  // ✅ Host Autoplay Soundtrack beim Öffnen
+  if (clue.audio) requestPlayAudio(clue.audio);
 
   startAttemptTimer();
 
@@ -936,12 +1002,11 @@ function renderBuzzerUI() {
   if (!area) return;
 
   area.innerHTML = "";
-
   if (current.phase !== "buzzer") return;
 
   if (modalAnswer) modalAnswer.classList.add("show");
 
-  // HOST
+  // ===== HOST VIEW =====
   if (isHost) {
     const queue = current.buzzQueue || [];
     const activeId = current.buzzerActiveId;
@@ -1005,7 +1070,7 @@ function renderBuzzerUI() {
     return;
   }
 
-  // BOARD
+  // ===== BOARD VIEW =====
   const myPlayer = getPlayerById(clientId);
 
   const orderBox = `
@@ -1241,6 +1306,8 @@ if (!isHost) {
 
     if (joinBtnEl) joinBtnEl.disabled = true;
     if (joinNameEl) joinNameEl.disabled = true;
+
+    unlockAudio();
   }
 
   if (joinBtnEl) joinBtnEl.addEventListener("click", doJoin);
@@ -1260,6 +1327,7 @@ if (!isHost) {
 /* =========================
    Start
 ========================= */
+showSplash();
 renderPlayers();
 renderTurn();
 buildBoard();
