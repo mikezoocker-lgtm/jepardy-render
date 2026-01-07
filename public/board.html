@@ -6,55 +6,66 @@
   <title>Quiz – Board</title>
   <link rel="stylesheet" href="style.css">
 </head>
-
 <body data-role="board">
 
-<!-- SPLASH -->
-<div class="splash" id="splash">
-  <div class="splashInner">
-    <img src="logo.png" alt="Quiz Logo" class="splashLogo">
-  </div>
-</div>
+  <div class="app">
 
-<div class="app">
-
-  <div class="centerLogo">
-    <img src="logo.png" alt="Quiz Logo">
-  </div>
-
-  <section class="playersPanel">
-    <div class="joinBar">
-      <input id="joinName" type="text" placeholder="Dein Name…" autocomplete="off">
-      <button class="btn" id="joinBtn">Beitreten</button>
+    <div class="centerLogo">
+      <img src="logo.png" alt="Quiz Logo">
     </div>
 
-    <div class="playersHeader">
-      <h2>Spieler</h2>
-    </div>
-
-    <div class="players" id="players"></div>
-  </section>
-
-  <div class="board" id="board"></div>
-</div>
-
-<!-- Modal -->
-<div class="overlay" id="overlay">
-  <div class="modal">
-    <div class="modalTop">
-      <div class="meta">
-        <div class="tag">
-          <b id="modalCategory">Kategorie</b> ·
-          <span id="modalValue">100</span> Punkte
-        </div>
-        <div class="question" id="modalQuestion"></div>
+    <section class="playersPanel">
+      <div class="joinBar">
+        <input id="joinName" type="text" placeholder="Dein Name…" autocomplete="off">
+        <button class="btn" id="joinBtn">Beitreten</button>
       </div>
-    </div>
 
-    <div class="answer" id="modalAnswer"></div>
+      <div class="playersHeader">
+        <h2>Spieler</h2>
+      </div>
+
+      <div class="players" id="players"></div>
+    </section>
+
+    <div class="board" id="board"></div>
   </div>
-</div>
 
-<script src="script.js" defer></script>
+  <!-- Frage-Modal (Board: Anzeige + Buzz + Timer) -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modalTop">
+        <div class="meta">
+          <div class="tag">
+            <b id="modalCategory">Kategorie</b> ·
+            <span id="modalValue">100</span> Punkte
+          </div>
+
+          <div class="question" id="modalQuestion"></div>
+
+          <!-- ✅ Timer wird per JS hier reingerendert -->
+          <div id="timerMount"></div>
+        </div>
+      </div>
+
+      <div class="answer" id="modalAnswer"></div>
+    </div>
+  </div>
+
+  <!-- Endscreen / Scoreboard -->
+  <div class="overlay" id="endOverlay" aria-hidden="true">
+    <div class="modal endModal">
+      <div class="modalTop">
+        <div class="meta">
+          <div class="tag">
+            <b>Spiel beendet</b> · <span>Top 3</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="podium" id="podium"></div>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
 </body>
 </html>

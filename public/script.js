@@ -1299,8 +1299,4 @@ buildBoard();
 startTickLoop();
 if (isHost) syncSnapshot();
 
-document.addEventListener("DOMContentLoaded", () => {
-  const splash = document.getElementById("splash");
-  if (!splash) return;
-  splash.addEventListener("click", () => splash.classList.add("hide"));
-});
+
