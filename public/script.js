@@ -96,35 +96,24 @@ const TICK_MS = 100;
 let gameData = {
   categories: [
     {
-      name: "Gemink",
+      name: "Gaming",
       clues: [
-        {
-          value: 100,
-          q: "Wie heißt das Taschenmonster-Spiel, das 1999 in Deutschland erschien?",
-          a: "Pokémon",
-        },
-        { value: 200, q: "Wie hieß das erste Battlefield?", a: "Battlefield 1942" },
-        {
-          value: 300,
-          q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?",
-          a: "World of Warcraft",
-        },
-        { value: 400, q: "Welches Tag ist semantisch für die Hauptüberschrift gedacht?", a: "<h1>" },
-        {
-          value: 500,
-          q: "Wie heißt der Hexer mit den weißen Haaren aus einer polnischen RPG-Reihe?",
-          a: "Geralt von Riva",
+        { value: 100, q: "In welchem Farming-Spiel kann man heiraten, angeln und ein Dorf wiederbeleben?", a: "Stardew Valley"},
+        { value: 200, q: "Welches Rollenspiel begann 2004 und gilt als eines der erfolgreichsten MMOs aller Zeiten?", a: "World of Warcraft"},
+        { value: 300, q: "Wie hieß das erste Battlefield?", a: "Battlefield 1942" },
+        { value: 400, q: "In welchem Jahr war der Release des Game Boy Colors??", a: "1998" },
+        { value: 500, q: "In welchem Spiel ist der Erzähler selbst ein Gegner, dessen Anweisungen bewusst sabotiert werden können?", a: "The Stanley Parable",
         },
       ],
     },
     {
-      name: "Kennzeichen",
+      name: "Film- und Serienwissen",
       clues: [
-        { value: 100, q: "Stadt B?", a: "Berlin" },
-        { value: 200, q: "Land: CZ?", a: "Tschechien" },
-        { value: 300, q: "Stadt: FF?", a: "Frankfurt Oder" },
-        { value: 400, q: "Stadt HGR?", a: "Hansestadt Greifswald" },
-        { value: 500, q: "Land: CY?", a: "Zypern" },
+        { value: 100, q: "In welcher Serie geht es um einen Chemielehrer, der Drogen kocht?", a: "Breaking Bad" },
+        { value: 200, q: "Welche Serie beginnt mit dem Lied „I’ll Be There for You“", a: "Friends" },
+        { value: 300, q: "Welcher Film aus dem Jahr 2000 handelt von einem Mann, dessen ganzes Leben eine Fernsehshow ist?", a: "Die Truman Show" },
+        { value: 400, q: "Welche Serie spielte überwiegend im Gefängnis Litchfield?", a: "Orange Is the New Black" },
+        { value: 500, q: "Aus welchem Film stammt das Zitat: „Der Trick ist, nichts zu brauchen.“?", a: "Fight Club" },
       ],
     },
     {
@@ -132,11 +121,7 @@ let gameData = {
       clues: [
         { value: 100, q: "Wie oft wurde Deutschland Fußball-Weltmeister?", a: "4-mal" },
         { value: 200, q: "Wie heißt der erste Pickup-Truck vin Tesla?", a: "Cybertruck" },
-        {
-          value: 300,
-          q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?",
-          a: "Stockholm-Syndrom",
-        },
+        { value: 300, q: "Wie ist der Begriff für Geiseln, die Verständis für ihre Entführer haben?", a: "Stockholm-Syndrom"},
         { value: 400, q: "Was rief Archimedes, als er in der Badewanne den Auftrieb entdeckte", a: "Heureka" },
         { value: 500, q: "Was war das erste Gemüse, das im Weltall angepflanzt und geerntet wurde?", a: "Salat / roter Römersalat" },
       ],
@@ -145,18 +130,18 @@ let gameData = {
       name: "Wer oder Was ist das?",
       clues: [
         { value: 100, img: "Bilder/1.jpg", a: "DuelDisk aus Yu-gi-Oh" },
-        { value: 200, img: "Bilder/2.png", a: "Lux" },
-        { value: 300, img: "Bilder/3.jpg", a: "Beyblade" },
-        { value: 400, img: "Bilder/4.png", a: "Agumon (Digimon)" },
+        { value: 200, img: "Bilder/2.png", a: "Monchichi" },
+        { value: 300, img: "Bilder/3.jpg", a: "Briegel der Busch" },
+        { value: 400, img: "Bilder/4.png", a: "Imperator Zurg" },
         { value: 500, img: "Bilder/5.jpg", a: "Zonk" },
       ],
     },
     {
       name: "Abkürzungen",
       clues: [
-        { value: 100, q: "Was heißt GmbH?", a: "Gesellschaft mit beschränkter Haftung" },
+        { value: 100, q: "Was heißt KFC?", a: "Kentucky Fried Chicken" },
         { value: 200, q: "Was heißt ROFL?", a: "Rolling on the Floor Laughing" },
-        { value: 300, q: "Was heißt KFC?", a: "Kentucky Fried Chicken" },
+        { value: 300, q: "Was heißt GmbH?", a: "Gesellschaft mit beschränkter Haftung" },
         { value: 400, q: "Was heißt IGL?", a: "In Game Leader" },
         { value: 500, q: "Was bedeutet B.A.?", a: "Bachelor of Arts" },
       ],
@@ -164,21 +149,21 @@ let gameData = {
     {
       name: "Soundtracks",
       clues: [
-        { value: 100, audio: "audio/1.mp3", a: "Pokemon" },
-        { value: 200, audio: "audio/2.mp3", a: "Schloss Einstein" },
-        { value: 300, audio: "audio/3.mp3", a: "Friends" },
-        { value: 400, audio: "audio/4.mp3", a: "Finger Tips" },
-        { value: 500, audio: "audio/5.mp3", a: "Hör mal wer da hämmert!" },
+        { value: 100, audio: "audio/1.mp3", a: "Mystic Knights – Die Legende von Tir Na Nog" },
+        { value: 200, audio: "audio/2.mp3", a: "Die Kinder vom Alstertal" },
+        { value: 300, audio: "audio/3.mp3", a: "Pippi Langstrumpf" },
+        { value: 400, audio: "audio/4.mp3", a: "Das Familien-Duell" },
+        { value: 500, audio: "audio/5.mp3", a: "Norman Normal!" },
       ],
     },
     {
       name: "Morph",
       clues: [
-        { value: 100, img: "morph/1.png", a1: "morph/1a.jpeg", a2: "morph/1b.jpg" },
-        { value: 200, img: "morph/2.png", a1: "morph/2a.jpg", a2: "morph/2b.jpg" },
-        { value: 300, img: "morph/3.png", a1: "morph/3a.jpg", a2: "morph/3b.jpeg" },
-        { value: 400, img: "morph/4.png", a1: "morph/4a.jpeg", a2: "morph/4b.jpg" },
-        { value: 500, img: "morph/5.png", a1: "morph/5a.jpg", a2: "morph/5b.png" },
+        { value: 100, img: "morph/1.png", a1: "morph/1a.png", a2: "morph/1b.jpg" },
+        { value: 200, img: "morph/2.png", a1: "morph/2a.png", a2: "morph/2b.png" },
+        { value: 300, img: "morph/3.png", a1: "morph/3a.jpg", a2: "morph/3b.jpg" },
+        { value: 400, img: "morph/4.png", a1: "morph/4a.jpg", a2: "morph/4b.jpg" },
+        { value: 500, img: "morph/5.png", a1: "morph/5a.png", a2: "morph/5b.png" },
       ],
     },
     {
