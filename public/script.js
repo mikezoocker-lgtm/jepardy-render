@@ -129,11 +129,11 @@ let gameData = {
     {
       name: "Wer oder Was ist das?",
       clues: [
-        { value: 100, img: "bilder/1.jpg", a: "DuelDisk aus Yu-gi-Oh" },
-        { value: 200, img: "bilder/2.png", a: "Monchichi" },
+        { value: 100, img: "bilder/1.png", a: "Monchichi" },
+        { value: 200, img: "bilder/2.jpg", a: "Zonk" },
         { value: 300, img: "bilder/3.jpg", a: "Briegel der Busch" },
-        { value: 400, img: "bilder/4.png", a: "Imperator Zurg" },
-        { value: 500, img: "bilder/5.jpg", a: "Zonk" },
+        { value: 400, img: "bilder/4.png", a: "Hilary Duff" },
+        { value: 500, img: "bilder/5.png", a: "Imperator Zurg" },
       ],
     },
     {
