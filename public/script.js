@@ -1,10 +1,40 @@
+/* public/script.js */
+
+/* =========================
+   Splash (Start-Logo) – click-to-close
+   (funktioniert mit defer + ohne inline scripts)
+========================= */
+(function initSplash() {
+  const splash = document.getElementById("splash");
+  if (!splash) return;
+
+  const hideSplash = () => {
+    if (splash.classList.contains("hide")) return;
+    splash.classList.add("hide");
+    setTimeout(() => {
+      try { splash.remove(); } catch {}
+    }, 400);
+  };
+
+  // Click anywhere on splash
+  splash.addEventListener("click", hideSplash);
+
+  // Keyboard support
+  splash.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "Escape") hideSplash();
+  });
+
+  // Make sure it can receive focus for keydown (already has tabindex in HTML, but safe)
+  try { splash.tabIndex = splash.tabIndex || 0; } catch {}
+})();
+
 /*************************************************
  * JEOPARDY – HOST/BOARD MULTIPLAYER (WebSocket)
  * - Host baut/steuert, Boards schauen & buzzern
  * - Timer: 30s pro Versuch (außer Soundtracks)
  * - Buzz Window: 5s zum Buzzern (visuell)
  * - Antwort wird NUR durch Host "Antwort zeigen" eingeblendet
- * - ✅ NEU: Soundtracks spielen automatisch, wenn Host die Frage öffnet
+ * - ✅ Soundtracks spielen automatisch, wenn Host die Frage öffnet
  *************************************************/
 
 const ROLE = (document.body?.dataset?.role || "host").toLowerCase();
@@ -245,7 +275,7 @@ function stopAudio() {
   currentAudio = null;
 }
 function playAudio(src) {
-  if (!isHost) return; // ✅ Audio nur Host
+  if (!isHost) return; // Audio nur Host
   stopAudio();
   currentAudio = new Audio(src);
   currentAudio.play().catch(() => {});
@@ -453,7 +483,6 @@ function fillModalFromClue(clue, categoryName, value) {
     if (clue.img) {
       modalQuestion.innerHTML = `<img src="${clue.img}" alt="Fragebild" class="whoImg">`;
     } else if (clue.audio) {
-      // Board/Host: Anzeige + Play Button (Host hört automatisch beim Öffnen)
       modalQuestion.innerHTML = `
         <div class="questionText">🎵 Soundtrack</div>
         <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
@@ -484,7 +513,6 @@ function fillModalFromClue(clue, categoryName, value) {
 
   setAnswerVisible(false);
 
-  // Play Button: nur Host soll wirklich Audio starten (Browser-Policy)
   const playBtn = document.getElementById("playTrackBtn");
   if (playBtn && clue.audio) {
     playBtn.onclick = () => playAudio(clue.audio);
@@ -729,14 +757,11 @@ function openQuestion(ci, qi) {
     ...clue,
   };
 
-  // ✅ Wichtig: erst Modal füllen, dann (optional) Audio starten
   stopAudio();
   fillModalFromClue(clue, gameData.categories[ci].name, clue.value);
 
-  // ✅ NEU: Soundtracks automatisch starten, wenn Host die Frage öffnet
-  if (clue.audio) {
-    playAudio(clue.audio);
-  }
+  // ✅ Soundtracks automatisch starten beim Öffnen (Host)
+  if (clue.audio) playAudio(clue.audio);
 
   startAttemptTimer();
 
@@ -916,7 +941,7 @@ function renderBuzzerUI() {
 
   if (modalAnswer) modalAnswer.classList.add("show");
 
-  // ===== HOST VIEW =====
+  // HOST
   if (isHost) {
     const queue = current.buzzQueue || [];
     const activeId = current.buzzerActiveId;
@@ -980,7 +1005,7 @@ function renderBuzzerUI() {
     return;
   }
 
-  // ===== BOARD VIEW =====
+  // BOARD
   const myPlayer = getPlayerById(clientId);
 
   const orderBox = `

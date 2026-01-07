@@ -1,3 +1,4 @@
+/* public/style.css */
 @font-face {
   font-family: "Impact";
   src: url("fonts/Impact.ttf") format("truetype");
@@ -12,20 +13,18 @@
 }
 
 :root{
-  --bg:#06140c;
+  --bg:#081f12;
   --panel:#0b2d18;
-
-  /* Hauptfarbe GRÜN */
   --green1:#1f7a3a;
   --green2:#2fbf71;
-  --greenGlow: rgba(47,191,113,.55);
+
+  --accent:#f7d046;
+  --accent2:#ffeaa0;
 
   --text:#ffffff;
   --muted:#cfe6d6;
-
   --danger:#ff5c5c;
   --ok:#36d399;
-
   --radius:16px;
 }
 
@@ -41,9 +40,8 @@ body{
   padding:20px;
 
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.14), transparent 60%),
-    radial-gradient(circle at center, rgba(47,191,113,.10), transparent 70%),
-    linear-gradient(rgba(6,20,12,.96), rgba(6,20,12,.96)),
+    radial-gradient(circle at top, rgba(47,191,113,.18), transparent 60%),
+    linear-gradient(rgba(8,31,18,.92), rgba(8,31,18,.92)),
     url("logo.png");
   background-repeat:no-repeat;
   background-position:center center;
@@ -53,80 +51,77 @@ body{
   color: var(--text);
 }
 
-/* ================= APP / RAHMEN ================= */
-
 .app{
   width:min(1600px,100%);
   display:grid;
   gap:16px;
 
   position: relative;
-  padding: 26px;
-  border-radius: 34px;
+  padding: 22px;
+  border-radius: 30px;
 
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.14), transparent 55%),
-    linear-gradient(180deg, rgba(11,45,24,.60), rgba(6,20,12,.75));
+    radial-gradient(circle at top, rgba(47,191,113,.18), transparent 55%),
+    linear-gradient(180deg, rgba(11,45,24,.55), rgba(11,45,24,.55));
 
-  /* dicker Rahmen */
-  border: 14px solid var(--green2);
-
+  /* ✅ dicker grüner Rahmen */
+  border: 10px solid rgba(47,191,113,.75);
   box-shadow:
-    0 0 0 8px rgba(22,110,62,.95),
-    0 0 55px var(--greenGlow),
-    inset 0 0 26px rgba(47,191,113,.18);
+    0 0 0 6px rgba(12,45,24,.95),
+    0 0 40px rgba(47,191,113,.30),
+    inset 0 0 22px rgba(47,191,113,.14);
 }
 
-/* ✅ Grüne „Glühbirnen“-Punkte – OHNE Streifen, OHNE Gelb */
+/* ✅ grüne “Bulbs” (keine Streifen, keine gelben Punkte) */
 .app::before{
   content:"";
   position:absolute;
-  inset:-20px;
-  border-radius: 48px;
+  inset:-18px;
+  border-radius: 44px;
   pointer-events:none;
+  opacity:.95;
 
-  /* Punkte entlang der Kante (oben/unten/links/rechts) */
   background:
-    radial-gradient(circle, rgba(47,191,113,.95) 0 3px, transparent 4px) 0 0/28px 28px,
-    radial-gradient(circle, rgba(47,191,113,.45) 0 10px, transparent 12px) 0 0/28px 28px;
+    radial-gradient(circle at 6% 12%, rgba(47,191,113,.85), transparent 38%),
+    radial-gradient(circle at 18% 8%, rgba(47,191,113,.55), transparent 42%),
+    radial-gradient(circle at 34% 10%, rgba(47,191,113,.75), transparent 40%),
+    radial-gradient(circle at 50% 8%, rgba(47,191,113,.55), transparent 42%),
+    radial-gradient(circle at 66% 10%, rgba(47,191,113,.75), transparent 40%),
+    radial-gradient(circle at 82% 8%, rgba(47,191,113,.55), transparent 42%),
+    radial-gradient(circle at 94% 12%, rgba(47,191,113,.85), transparent 38%),
 
-  /* nur KANTEN sichtbar */
-  -webkit-mask:
-    linear-gradient(#000,#000) content-box,
-    linear-gradient(#000,#000);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-
-  padding: 18px;
-
-  filter: drop-shadow(0 0 10px rgba(47,191,113,.55));
-  opacity: .95;
+    radial-gradient(circle at 6% 88%, rgba(47,191,113,.85), transparent 38%),
+    radial-gradient(circle at 18% 92%, rgba(47,191,113,.55), transparent 42%),
+    radial-gradient(circle at 34% 90%, rgba(47,191,113,.75), transparent 40%),
+    radial-gradient(circle at 50% 92%, rgba(47,191,113,.55), transparent 42%),
+    radial-gradient(circle at 66% 90%, rgba(47,191,113,.75), transparent 40%),
+    radial-gradient(circle at 82% 92%, rgba(47,191,113,.55), transparent 42%),
+    radial-gradient(circle at 94% 88%, rgba(47,191,113,.85), transparent 38%);
+  filter: blur(.2px) drop-shadow(0 0 14px rgba(47,191,113,.35));
 }
 
 .app > *{ position: relative; z-index: 1; }
 
-/* ================= LOGO ================= */
-
+/* Zentrales Logo */
 .centerLogo{
   display:flex;
   justify-content:center;
   align-items:center;
-  padding: 6px 0 0;
+  padding: 8px 0 0;
 }
 .centerLogo img{
-  width: min(220px, 70vw);
+  width: min(200px, 65vw);
   height: auto;
   filter:
     drop-shadow(0 18px 40px rgba(0,0,0,.55))
-    drop-shadow(0 0 26px rgba(47,191,113,.35));
-  opacity: .96;
+    drop-shadow(0 0 22px rgba(47,191,113,.25));
+  opacity: .95;
 }
 
-/* ================= PANELS ================= */
-
+/* Panels */
 .playersPanel{
   background: rgba(0,0,0,.22);
-  border: 1px solid rgba(47,191,113,.18);
+  border: 1px solid rgba(47,191,113,.22);
   border-radius: var(--radius);
   padding:14px;
   display:grid;
@@ -135,7 +130,7 @@ body{
 
 .panelTop{
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-end;
   align-items:center;
   gap:12px;
 }
@@ -149,11 +144,11 @@ body{
 .pill{
   padding:8px 14px;
   border-radius:999px;
-  background: rgba(47,191,113,.14);
-  color: #dfffee;
-  font-weight:900;
+  background: rgba(47,191,113,.18);
+  color: #eafff2;
+  font-weight:700;
   white-space:nowrap;
-  border: 1px solid rgba(47,191,113,.22);
+  border: 1px solid rgba(47,191,113,.28);
   box-shadow: 0 10px 22px rgba(0,0,0,.25);
 }
 
@@ -165,10 +160,7 @@ body{
   color: var(--text);
   cursor:pointer;
 }
-.btn:disabled{
-  opacity:.6;
-  cursor:not-allowed;
-}
+.btn:disabled{ opacity:.6; cursor:not-allowed; }
 
 .playersHeader{
   display:flex;
@@ -176,10 +168,13 @@ body{
   align-items:center;
   gap:12px;
 }
-.playersActions{
-  display:flex;
-  gap:8px;
+.playersHeader h2{
+  margin:0;
+  font-size:16px;
+  letter-spacing:.4px;
+  color: rgba(255,255,255,.95);
 }
+.playersActions{ display:flex; gap:8px; }
 
 .players{
   display:grid;
@@ -194,18 +189,17 @@ body{
   padding:12px;
   border-radius:14px;
   background: rgba(255,255,255,.08);
-  border: 1px solid rgba(47,191,113,.16);
+  border: 1px solid rgba(47,191,113,.20);
   display:flex;
   flex-direction:column;
   gap:8px;
   cursor:pointer;
 }
-
 .playerCard.active{
   border-color: rgba(47,191,113,.65);
   box-shadow:
-    0 0 0 2px rgba(47,191,113,.28) inset,
-    0 0 26px rgba(47,191,113,.18);
+    0 0 0 2px rgba(47,191,113,.22) inset,
+    0 0 26px rgba(47,191,113,.20);
 }
 
 .playerTop{
@@ -214,7 +208,6 @@ body{
   justify-content:space-between;
   gap:8px;
 }
-
 .playerTop input{
   width:100%;
   background: transparent;
@@ -224,40 +217,36 @@ body{
   padding:8px 10px;
   outline:none;
 }
-
 .playerScore{
   font-weight:900;
-  color: #dfffee;
+  color: var(--accent);
   min-width:42px;
   text-align:right;
 }
 
-/* ================= BOARD ================= */
-
+/* Board */
 .board{
   display:grid;
   grid-template-columns: repeat(8, 1fr);
   gap:10px;
 }
 
-/* Kategorie: Text mittig */
 .cat{
   display:flex;
   justify-content:center;
   align-items:center;
-
   text-align:center;
   font-weight:900;
   color:#fff;
 
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.40), rgba(31,122,58,.92)),
-    linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.22));
+    radial-gradient(circle at top, rgba(47,191,113,.45), rgba(31,122,58,.9)),
+    linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.22));
   border-radius:14px;
   padding:12px 10px;
   letter-spacing:.8px;
 
-  border: 1px solid rgba(47,191,113,.18);
+  border: 1px solid rgba(47,191,113,.22);
   box-shadow:
     inset 0 -6px 0 rgba(0,0,0,.25),
     0 10px 24px rgba(0,0,0,.35);
@@ -265,9 +254,9 @@ body{
 
 .tile{
   background:
-    radial-gradient(circle at top, rgba(47,191,113,.28), rgba(31,122,58,.88)),
-    linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.22));
-  color: #dfffee;
+    radial-gradient(circle at top, rgba(47,191,113,.35), rgba(31,122,58,.85)),
+    linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.22));
+  color: var(--accent);
   font-size:26px;
   font-weight:900;
   height:90px;
@@ -277,35 +266,27 @@ body{
   border-radius:14px;
   cursor:pointer;
 
-  border: 1px solid rgba(47,191,113,.14);
+  border: 1px solid rgba(47,191,113,.20);
 
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease,
-    background-color 180ms ease;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
 
 .tile:hover{
   transform: translateY(-4px) scale(1.04);
   box-shadow:
     0 18px 40px rgba(0,0,0,.45),
-    0 0 0 2px rgba(47,191,113,.22) inset,
+    0 0 0 2px rgba(247,208,70,.18) inset,
     0 0 22px rgba(47,191,113,.18);
 }
-
 .tile:active{ transform: scale(0.97); }
 
 .tile.used{
   opacity:.4;
   cursor:not-allowed;
 }
-.tile.used:hover{
-  transform:none;
-  box-shadow:none;
-}
+.tile.used:hover{ transform:none; box-shadow:none; }
 
-/* ================= MODAL ================= */
-
+/* Modal */
 .overlay{
   position:fixed;
   inset:0;
@@ -321,13 +302,13 @@ body{
 .modal{
   background:
     radial-gradient(circle at top, rgba(47,191,113,.18), transparent 55%),
-    linear-gradient(180deg, rgba(11,45,24,.95), rgba(6,20,12,.92));
+    linear-gradient(180deg, rgba(11,45,24,.95), rgba(8,24,52,.92));
   padding:20px;
   border-radius:18px;
   width:min(700px,100%);
   border: 2px solid rgba(47,191,113,.55);
   box-shadow:
-    0 0 35px rgba(47,191,113,.25),
+    0 0 35px rgba(47,191,113,.22),
     0 18px 60px rgba(0,0,0,.6);
 }
 
@@ -361,7 +342,7 @@ body{
 
 .btnOk{color:var(--ok)}
 .btnNo{color:var(--danger)}
-.btnPrimary{color:#dfffee}
+.btnPrimary{color:var(--accent)}
 
 .whoImg,
 .morphQuestionImg{
@@ -386,8 +367,27 @@ body{
   border-radius:12px;
 }
 
-/* ================= JOIN ================= */
+/* Endscreen Podium */
+.endModal .podium{
+  display:flex;
+  gap:12px;
+  justify-content:center;
+  align-items:flex-end;
+  padding: 14px 4px;
+}
+.podiumSlot{
+  width: min(220px, 28vw);
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(47,191,113,.25);
+  border-radius: 16px;
+  padding: 12px;
+  text-align:center;
+}
+.podiumRank{ color: var(--muted); font-weight:900; }
+.podiumName{ margin: 10px 0 6px; font-size: 18px; font-weight: 900; }
+.podiumScore{ color: var(--accent); font-weight: 900; font-size: 18px; }
 
+/* Join */
 .joinBar{
   display:flex;
   gap:10px;
@@ -404,27 +404,12 @@ body{
   outline: none;
 }
 
-/* ================= BUZZER ================= */
-
+/* Buzzer basics (falls dein JS sie nutzt) */
 .answerContent{ margin-top: 10px; }
-
 .buzzerArea{ margin-bottom: 10px; }
-.buzzerHint{
-  color: rgba(234,242,255,.88);
-  font-weight: 900;
-  margin-bottom: 8px;
-}
-.buzzerBtn{
-  width: 100%;
-  font-weight: 900;
-  letter-spacing: .5px;
-}
-.buzzerList{
-  display:flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0 10px;
-}
+.buzzerHint{ color: rgba(234,242,255,.88); font-weight: 900; margin-bottom: 8px; }
+.buzzerBtn{ width: 100%; font-weight: 900; letter-spacing: .5px; }
+.buzzerList{ display:flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 10px; }
 .buzzerPick{
   border-radius: 999px;
   padding: 8px 12px;
@@ -440,7 +425,6 @@ body{
 }
 .buzzerEmpty{ color: rgba(183,199,230,.85); }
 .buzzerCurrent{ color: rgba(234,242,255,.92); font-weight: 700; }
-
 .buzzerLocked{
   padding: 12px;
   border-radius: 12px;
@@ -450,6 +434,7 @@ body{
   font-weight: 800;
 }
 
+/* Board darf nicht steuern (außer Join & Buzz) */
 body[data-role="board"] .playersActions{ display:none !important; }
 body[data-role="board"] .tile{ cursor: default !important; }
 
@@ -457,20 +442,17 @@ body[data-role="board"] .tile{ cursor: default !important; }
   .players{ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 }
 
-/* ================= SPLASH (Logo Startscreen) ================= */
-
+/* ---------------- Splash Screen ---------------- */
 .splash{
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(circle at center, rgba(47,191,113,.35), rgba(0,0,0,.92) 70%);
+  background: rgba(0,0,0,0.78);
   z-index: 9999;
   cursor: pointer;
   backdrop-filter: blur(6px);
 }
-
 .splashInner{
   display: grid;
   gap: 14px;
@@ -478,25 +460,31 @@ body[data-role="board"] .tile{ cursor: default !important; }
   text-align: center;
   padding: 22px 26px;
   border-radius: 18px;
-  background: rgba(6,20,12,.35);
-  border: 1px solid rgba(47,191,113,.22);
+  background: rgba(11,45,24,0.68);
+  border: 1px solid rgba(47,191,113,0.35);
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
 }
-
 .splashLogo{
-  width: min(700px, 75vw);
+  width: min(520px, 70vw);
   height: auto;
   animation: splashPop 900ms ease-out both;
-  filter:
-    drop-shadow(0 10px 25px rgba(0,0,0,.55))
-    drop-shadow(0 0 35px rgba(47,191,113,.75));
+  filter: drop-shadow(0 10px 25px rgba(0,0,0,0.55));
 }
-
+.splashHint{
+  color: rgba(234,242,255,0.92);
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  animation: splashPulse 1200ms ease-in-out infinite;
+}
 @keyframes splashPop{
   0%   { transform: scale(0.85); opacity: 0; }
   60%  { transform: scale(1.05); opacity: 1; }
   100% { transform: scale(1.0); }
 }
-
+@keyframes splashPulse{
+  0%,100% { opacity: 0.65; transform: translateY(0); }
+  50%     { opacity: 1; transform: translateY(-2px); }
+}
 .splash.hide{
   animation: splashFadeOut 350ms ease forwards;
 }
